@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Задачи{% endblock %}
+
+{% block content %}
+  <section class="page-hero work-page-hero" data-reveal>
+    <div>
+      <span class="kicker">семейные дела</span>
+      <h1>Задачи</h1>
+      <p>Видно, что нужно сделать, кто отвечает и когда мягко напомнить.</p>
+    </div>
+    <div class="page-toolbar">
+      <button class="btn" type="button" onclick="document.getElementById('task-create').showModal()"><i data-lucide="list-plus"></i>Добавить задачу</button>
+    </div>
+  </section>
+
+  <section class="filter-bar" data-reveal>
+    {% if families %}
+      <form method="get">
+        <div class="filters">
+          <input
+            id="task-search"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Поиск по названию задачи"
+          />
+          <select id="task-status" name="status">
+            <option value="" {% if not status %}selected{% endif %}>Все статусы</option>
+            <option value="todo" {% if status == "todo" %}selected{% endif %}>Нужно сделать</option>
+            <option value="in_progress" {% if status == "in_progress" %}selected{% endif %}>В процессе</option>
+            <option value="done" {% if status == "done" %}selected{% endif %}>Готово</option>
+          </select>
+          <button class="btn secondary small" type="submit">Фильтр</button>
+          <a class="btn secondary small" href="/tasks/">Сбросить</a>
+        </div>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <section class="surface" data-reveal>
+      <div class="section-heading">
+        <div>
+          <h2>Список задач</h2>
+          <p class="meta" id="task-result-count"></p>
+        </div>
+      </div>
+      {% if tasks %}
+        <div class="grid" id="tasks-grid">
+          {% for item in tasks %}
+            <div class="card task-card" data-status="{{ item.status }}" data-title="{{ item.title }}" data-reveal>
+              <strong><a href="/tasks/{{ item.id }}/">{{ item.title }}</a></strong>
+              <div class="meta">
+                Статус: <span class="badge {{ item.status }}">{{ item.get_status_display }}</span>
+              </div>
+              {% if item.assignee %}
+                <div class="meta">
+                  Ответственный: {{ item.assignee.get_full_name|default:item.assignee.username }}
+                </div>
+              {% endif %}
+              {% if item.due_date %}<div class="meta">Срок: {{ item.due_date|date_ru }}</div>{% endif %}
+              <div class="meta">Напоминать за: {{ item.remind_days_before }} дн.</div>
+              {% if item.tags.exists %}
+                <div class="meta">Метки: {% for tag in item.tags.all %}<span class="badge other">{{ tag.name }}</span> {% endfor %}</div>
+              {% endif %}
+
+              <div class="card-actions">
+                <form method="post" style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="status" />
+                  <input type="hidden" name="task_id" value="{{ item.id }}" />
+                  <button class="btn secondary small" type="submit" name="status" value="todo">Нужно сделать</button>
+                  <button class="btn secondary small" type="submit" name="status" value="in_progress">В процессе</button>
+                  <button class="btn secondary small" type="submit" name="status" value="done">Готово</button>
+                </form>
+                {% if can_manage %}
+                  <a class="btn secondary small" href="/tasks/{{ item.id }}/edit/">Редактировать</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <strong>Пока нет задач.</strong>
+          <button class="btn secondary small" type="button" onclick="document.getElementById('task-create').showModal()">Добавить задачу</button>
+        </div>
+      {% endif %}
+    </section>
+
+  <dialog id="task-create" class="app-dialog">
+    <form method="post" class="surface" hx-post="{{ request.get_full_path }}" hx-swap="none" data-quick-form data-refresh="1">
+      {% csrf_token %}
+      <header class="app-dialog-head">
+        <h2>Новая задача</h2>
+        <button type="button" class="btn small secondary" onclick="document.getElementById('task-create').close()" aria-label="Закрыть"><i data-lucide="x"></i></button>
+      </header>
+      {% include "partials/form_fields.html" with form=form %}
+      <div class="card-actions">
+        <button class="btn" type="submit"><i data-lucide="check"></i>Добавить</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('task-create').close()">Отмена</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const taskSearch = document.getElementById("task-search");
+    const taskStatus = document.getElementById("task-status");
+    const taskCards = document.querySelectorAll(".task-card");
+    const taskResultCount = document.getElementById("task-result-count");
+
+    const applyTaskFilter = () => {
+      const query = (taskSearch?.value || "").trim().toLowerCase();
+      const status = taskStatus?.value || "";
+      let visible = 0;
+      taskCards.forEach((card) => {
+        const title = (card.dataset.title || "").toLowerCase();
+        const matchesQuery = title.includes(query);
+        const matchesStatus = !status || card.dataset.status === status;
+        const isVisible = matchesQuery && matchesStatus;
+        card.style.display = isVisible ? "block" : "none";
+        if (isVisible) visible += 1;
+      });
+      if (taskResultCount) {
+        taskResultCount.textContent = visible ? `Найдено: ${visible}` : "Ничего не найдено";
+      }
+    };
+
+    if (taskSearch) taskSearch.addEventListener("input", applyTaskFilter);
+    if (taskStatus) taskStatus.addEventListener("change", applyTaskFilter);
+    applyTaskFilter();
+  </script>
+{% endblock %}

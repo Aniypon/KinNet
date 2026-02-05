@@ -1,0 +1,55 @@
+{% if form.non_field_errors %}
+  <div class="form-errors">{{ form.non_field_errors }}</div>
+{% endif %}
+
+{% for hidden in form.hidden_fields %}
+  {{ hidden }}
+{% endfor %}
+
+<div class="form-section">
+  <div class="form-section__header">
+    <span class="kicker">основное</span>
+    <h3>Кто это</h3>
+  </div>
+  {% include "partials/form_field_panel.html" with field=form.first_name %}
+  {% include "partials/form_field_panel.html" with field=form.last_name %}
+  {% include "partials/form_field_panel.html" with field=form.middle_name %}
+  {% include "partials/form_field_panel.html" with field=form.relation %}
+  {% include "partials/form_field_panel.html" with field=form.birth_date %}
+</div>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">контакты</span>
+      <strong>Телефон, почта и соцсети</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.phone %}
+  {% include "partials/form_field_panel.html" with field=form.email %}
+  {% include "partials/form_field_panel.html" with field=form.socials %}
+</details>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">детали</span>
+      <strong>Адреса, работа и заметки</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.address_home %}
+  {% include "partials/form_field_panel.html" with field=form.address_country_house %}
+  {% include "partials/form_field_panel.html" with field=form.workplace %}
+  {% include "partials/form_field_panel.html" with field=form.notes %}
+</details>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">связи</span>
+      <strong>Мама и папа</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.parent1 %}
+  {% include "partials/form_field_panel.html" with field=form.parent2 %}
+</details>

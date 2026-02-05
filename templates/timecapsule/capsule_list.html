@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Капсула времени{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero planner-hero" data-reveal>
+  <div>
+    <span class="kicker">семейная память</span>
+    <h1>Капсулы времени</h1>
+    <p>Отложенные сообщения и медиа выбранной семьи.</p>
+    <a class="btn" href="{% url 'timecapsule:capsule_create' %}?family={{ family.id }}">+ Новая капсула</a>
+  </div>
+</section>
+<div class="grid" style="margin-top:16px;">
+  {% for c in capsules %}
+    <div class="card">
+      <h3>{{ c.title }}</h3>
+      <p class="meta">{{ c.family.name }} · {{ c.reveal_at|date:"d.m.Y H:i" }} · <span class="badge">{{ c.get_status_display }}</span></p>
+      {% if c.status == "delivered" %}
+        <p>{{ c.message }}</p>
+        {% if c.media %}<a class="btn secondary small" href="{{ c.media.url }}" target="_blank" rel="noopener">Открыть файл</a>{% endif %}
+      {% else %}
+        <p class="meta">Откроется автоматически после назначенной даты.</p>
+      {% endif %}
+    </div>
+  {% empty %}<p>Капсул пока нет.</p>{% endfor %}
+</div>
+{% endblock %}

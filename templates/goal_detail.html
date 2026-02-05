@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}{{ goal.title }}{% endblock %}
+
+{% block content %}
+  {% with target=goal.target_amount %}
+  {% with collected=total %}
+  <section class="page-hero work-page-hero goal-detail-hero" data-reveal>
+    <div>
+      <a class="btn small secondary" href="{% url 'goals' %}?family={{ goal.family_id }}"><i data-lucide="arrow-left"></i>Все цели</a>
+      <h1>{{ goal.title }}</h1>
+      {% if goal.description %}<p class="meta">{{ goal.description }}</p>{% endif %}
+    </div>
+  </section>
+
+  <section class="surface goal-detail-progress" data-reveal>
+    <div class="goal-detail-amounts">
+      <div>
+        <span class="goal-summary-val">{{ collected|floatformat:0 }}</span>
+        <span class="meta">собрано из {{ target|floatformat:0 }}</span>
+      </div>
+      {% if goal.due_date %}
+        <div class="goal-detail-due">
+          <i data-lucide="calendar"></i>
+          <span>Срок: {{ goal.due_date|date_ru }}</span>
+        </div>
+      {% endif %}
+    </div>
+    {% if target %}
+      {% widthratio collected target 100 as pct %}
+      <div class="goal-progress goal-progress--lg" aria-label="Прогресс {{ pct }}%">
+        <div class="goal-progress-bar" style="width: {{ pct }}%"></div>
+      </div>
+      <p class="meta">{{ pct }}% выполнено</p>
+    {% endif %}
+  </section>
+
+  <section class="split goal-detail-grid" data-reveal>
+    <article class="surface">
+      <h3>Вклады</h3>
+      {% if goal.contributions.all %}
+        <ul class="plain-list goal-contrib-list">
+          {% for item in goal.contributions.all %}
+            <li class="goal-contrib-row" x-data="{ edit: false, confirm: false }">
+              <div x-show="!edit" style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;width:100%;">
+                <div>
+                  <strong>{{ item.user.get_full_name|default:item.user.username }}</strong>
+                  {% if item.comment %}<div class="meta">{{ item.comment }}</div>{% endif %}
+                  <div class="meta">{{ item.created_at|date:"d.m.Y" }}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem;">
+                  <span class="badge">+{{ item.amount|floatformat:0 }}</span>
+                  {% if item.user_id == request.user.id or can_manage_family %}
+                    <button type="button" class="btn small secondary" @click="edit = true">Изменить</button>
+                    <button type="button" class="btn small secondary" @click="confirm = true">Удалить</button>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if item.user_id == request.user.id or can_manage_family %}
+                <form x-show="edit" x-cloak method="post" style="display:flex;flex-direction:column;gap:0.5rem;width:100%;">
+                  {% csrf_token %}
+                  <strong>{{ item.user.get_full_name|default:item.user.username }}</strong>
+                  <input type="number" step="0.01" min="0.01" name="amount" value="{{ item.amount }}" required>
+                  <input type="text" name="comment" maxlength="255" value="{{ item.comment }}" placeholder="Комментарий">
+                  <div style="display:flex;gap:0.5rem;">
+                    <button class="btn small" type="submit" name="contrib-edit" value="{{ item.id }}">Сохранить</button>
+                    <button class="btn small secondary" type="button" @click="edit = false">Отмена</button>
+                  </div>
+                </form>
+
+                <div x-show="confirm" x-cloak style="display:flex;flex-direction:column;gap:0.5rem;width:100%;margin-top:0.5rem;">
+                  <p class="meta">Удалить вклад +{{ item.amount|floatformat:0 }}?</p>
+                  <form method="post" style="display:flex;gap:0.5rem;">
+                    {% csrf_token %}
+                    <button class="btn small" type="submit" name="contrib-delete" value="{{ item.id }}">Удалить</button>
+                    <button class="btn small secondary" type="button" @click="confirm = false">Отмена</button>
+                  </form>
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Вкладов пока нет. Будьте первым!</p>
+      {% endif %}
+    </article>
+
+    <article class="surface">
+      <h3>Добавить вклад</h3>
+      <form method="post">
+        {% csrf_token %}
+        {% include "partials/form_fields.html" with form=contribution_form %}
+        <button class="btn" type="submit" name="contrib-user" value="1"><i data-lucide="plus"></i>Внести</button>
+      </form>
+    </article>
+  </section>
+  {% endwith %}
+  {% endwith %}
+{% endblock %}

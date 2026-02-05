@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Вход{% endblock %}
+
+{% block content %}
+  <section class="page-hero" data-reveal>
+    <span class="kicker">возвращайтесь домой</span>
+    <h1>Вход в KinNet</h1>
+    <p>Откройте семейную ленту, задачи, события и домашние списки.</p>
+  </section>
+
+  <section class="form-shell" style="max-width: 460px; margin: 0 auto;" data-reveal>
+    <form method="post">
+      {% csrf_token %}
+      {% include "partials/form_fields.html" with form=form %}
+      <button class="btn" type="submit">Войти</button>
+    </form>
+    <p class="meta" style="margin-top: 12px;">
+      Нет аккаунта? <a href="/signup/">Создать</a>
+    </p>
+  </section>
+{% endblock %}

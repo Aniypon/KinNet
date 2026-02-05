@@ -1,0 +1,30 @@
+/* ── Family switcher in topbar ───────────────────────────────────────────── */
+.family-switcher-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+
+.family-switcher-select {
+  min-height: 42px;
+  padding: 0.55rem 2rem 0.55rem 0.75rem;
+  color: var(--text);
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  appearance: none;
+  -webkit-appearance: none;
+  max-width: min(28ch, 34vw);
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-soft);
+}
+
+.family-switcher-select:focus-visible {
+  outline: 2px solid var(--accent);
+  border-radius: 4px;
+}
+

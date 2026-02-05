@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Здоровье семьи{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Здоровье семьи</h1>
+  <p>Группа крови, аллергии и расписание лекарств — всё в одном месте.</p>
+</section>
+<div class="grid" style="margin-top:16px;">
+  {% for member in members %}
+    <div class="card">
+      <h3>{{ member }}</h3>
+      <p class="meta">{{ member.family.name }} · {{ member.birth_date|date:"d.m.Y" }}</p>
+      {% if member.health_record %}
+        <p><strong>Группа крови:</strong> {{ member.health_record.get_blood_type_display|default:"—" }}</p>
+        {% if member.health_record.allergies %}<p><strong>Аллергии:</strong> {{ member.health_record.allergies }}</p>{% endif %}
+      {% else %}
+        <p class="meta">Карта здоровья не заполнена.</p>
+      {% endif %}
+      {% if member.medications.exists %}
+        <p><strong>Лекарства:</strong></p>
+        <ul>{% for m in member.medications.all %}<li>{{ m.name }} {{ m.dosage }} ({{ m.times }})</li>{% endfor %}</ul>
+      {% endif %}
+      <div class="card-actions">
+        <a class="btn small" href="{% url 'health:record_edit' member.id %}">Карта здоровья</a>
+        <a class="btn small secondary" href="{% url 'health:medication_create' member.id %}">+ Лекарство</a>
+      </div>
+    </div>
+  {% empty %}<p>Сначала добавьте родственников.</p>{% endfor %}
+</div>
+{% endblock %}

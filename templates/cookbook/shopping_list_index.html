@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Списки покупок{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero" data-reveal>
+  <div>
+    <span class="kicker">покупки</span>
+    <h1>Списки покупок</h1>
+    <p class="meta">Домашние списки для рецептов, праздников и обычных дел.</p>
+    <form method="post" class="inline-create-form">
+      {% csrf_token %}
+      <input name="name" placeholder="Например: продукты на неделю" required>
+      <button class="btn" type="submit"><i data-lucide="plus"></i>Создать список</button>
+    </form>
+  </div>
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for shopping_list in active_lists %}
+    <a class="card" href="{% url 'cookbook:shopping_list_detail' shopping_list.id %}" style="text-decoration:none;color:inherit;">
+      <h3>{{ shopping_list.name }}</h3>
+      <p class="meta">{{ shopping_list.items.count }} пунктов · {{ shopping_list.created_at|date:"d.m.Y" }}</p>
+    </a>
+  {% empty %}
+    <p class="meta">Пока нет активных списков. Создайте первый выше.</p>
+  {% endfor %}
+</div>
+
+{% if done_lists %}
+<details class="surface goals-done" data-reveal style="margin-top:16px;">
+  <summary><strong>Завершённые списки</strong> <span class="meta">({{ done_lists|length }})</span></summary>
+  <ul class="plain-list">
+    {% for shopping_list in done_lists %}
+      <li>
+        <a href="{% url 'cookbook:shopping_list_detail' shopping_list.id %}">
+          <i data-lucide="check-circle-2"></i>
+          <strong>{{ shopping_list.name }}</strong>
+          <span class="meta">— {{ shopping_list.items.count }} пунктов · {{ shopping_list.created_at|date:"d.m.Y" }}</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

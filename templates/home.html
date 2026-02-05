@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Сегодня в семье — KinNet{% endblock %}
+
+{% block content %}
+  <section class="home-hero" data-reveal>
+    <div class="home-hero__copy">
+      <div>
+        <span class="kicker">сегодня в семье</span>
+        <h1>Все близкие дела в одном тёплом месте</h1>
+        <p>
+          KinNet держит рядом события, заботы, рецепты, покупки, здоровье и семейную память.
+        </p>
+      </div>
+
+      <div class="home-hero__actions">
+        {% if request.user.is_authenticated %}
+          {% if family %}
+            <a class="btn" href="/events/"><i data-lucide="calendar-plus"></i>Добавить событие</a>
+            <a class="btn secondary" href="/tasks/"><i data-lucide="list-plus"></i>Новая задача</a>
+            <a class="btn secondary" href="/members/?family={{ family.id }}"><i data-lucide="users-round"></i>Семья</a>
+          {% else %}
+            <a class="btn" href="/families/"><i data-lucide="house"></i>Создать семью</a>
+          {% endif %}
+        {% else %}
+          <a class="btn" href="/signup/"><i data-lucide="user-plus"></i>Начать</a>
+          <a class="btn secondary" href="/accounts/login/"><i data-lucide="log-in"></i>Войти</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="home-hero__panel" data-parallax="0.05">
+      <div class="floating-note">
+        <span class="kicker">текущий круг</span>
+        {% if request.user.is_authenticated %}
+          {% if family %}
+            <h2>{{ family.name }}</h2>
+            <p class="meta">Участников: <strong>{{ family.family_members.count }}</strong></p>
+          {% else %}
+            <h2>Семья ещё не выбрана</h2>
+            <p class="meta">Создайте семейную группу, чтобы включить события и задачи.</p>
+          {% endif %}
+        {% else %}
+          <h2>Личная семейная лента</h2>
+          <p class="meta">После входа здесь появятся ближайшие даты и дела.</p>
+        {% endif %}
+      </div>
+
+      {% if pending_invitations %}
+        <div class="floating-note">
+          <span class="kicker">нужно внимание</span>
+          {% if pending_invitations %}
+            {% for invite in pending_invitations %}
+              <p class="meta">{{ invite.family.name }} — <a href="/invites/{{ invite.token }}/accept/">принять приглашение</a></p>
+            {% endfor %}
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if request.user.is_authenticated %}
+    <section class="surface notifications-panel" data-reveal>
+      <div class="card-row">
+        <span class="stat-token"><i data-lucide="bell"></i></span>
+        <div>
+          <h2>Напоминания
+            <span class="nav-badge" data-notifications-count {% if not unread_notifications_count %}hidden{% endif %}>{{ unread_notifications_count }}</span>
+          </h2>
+          <p class="meta">Лекарства, события и задачи семьи.</p>
+        </div>
+        <button type="button" class="btn secondary small" data-notifications-clear>Отметить прочитанным</button>
+      </div>
+      <div class="notif-list" data-notifications-feed>
+        {% for n in unread_notifications %}
+          <a href="{{ n.url|default:'#' }}" class="notif-item" data-notif-id="{{ n.id }}">
+            <strong>{{ n.title }}</strong>
+            {% if n.body %}<span class="meta">{{ n.body }}</span>{% endif %}
+          </a>
+        {% empty %}
+          <p class="meta">Пока тишина.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="status-strip" data-reveal>
+    <article class="surface">
+      <span class="stat-token"><i data-lucide="users-round"></i></span>
+      <h3>Родственные связи</h3>
+      {% if family %}
+        <p class="meta">{{ family.family_members.count }} человек в семейном круге.</p>
+      {% else %}
+        <p class="meta">Выберите семью, чтобы видеть связи.</p>
+      {% endif %}
+    </article>
+    <article class="surface">
+      <span class="stat-token"><i data-lucide="calendar-heart"></i></span>
+      <h3>Ближайшие события</h3>
+      <p class="meta">{{ upcoming_events|length }} в ближайшей ленте.</p>
+    </article>
+    <article class="surface">
+      <span class="stat-token"><i data-lucide="list-checks"></i></span>
+      <h3>Открытые задачи</h3>
+      <p class="meta">{{ upcoming_tasks|length }} с датой и напоминанием.</p>
+    </article>
+  </section>
+
+  {% if request.user.is_authenticated and family %}
+    <section class="today-command surface" data-reveal>
+      <form method="get" class="today-search">
+        <input type="search" name="q" value="{{ search_query }}" placeholder="Поиск по семье: люди, события, задачи, сообщения">
+        <button class="btn secondary" type="submit">Найти</button>
+      </form>
+      {% if global_results %}
+        <div class="global-results">
+          {% for result in global_results %}
+            <a href="{{ result.url }}"><span>{{ result.kind }}</span><strong>{{ result.title }}</strong></a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+
+    {% if next_onboarding_step %}
+      <section class="onboarding-strip surface" data-reveal>
+        <div class="onboarding-header">
+          <span class="kicker">первый запуск</span>
+          <h2>{{ next_onboarding_step.label }}</h2>
+        </div>
+        <div class="onboarding-progress">
+          {% for step in onboarding_steps %}
+            <div class="onboarding-step {% if step.done %}onboarding-step--done{% else %}onboarding-step--active{% endif %}">
+              <span class="onboarding-step__icon">
+                {% if step.done %}<i data-lucide="check-circle-2"></i>{% else %}<i data-lucide="circle"></i>{% endif %}
+              </span>
+              <span class="onboarding-step__label">{{ step.label }}</span>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="card-actions">
+          <a class="btn" href="{{ next_onboarding_step.url }}">Продолжить</a>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="family-feed surface" data-reveal>
+      <div class="card-row">
+        <span class="stat-token"><i data-lucide="activity"></i></span>
+        <div>
+          <h2>Сегодня в семье</h2>
+          <p class="meta">Единая лента событий, задач и переписки.</p>
+        </div>
+      </div>
+      {% if today_feed %}
+        <div class="feed-list">
+          {% for item in today_feed %}
+            <a href="{{ item.url }}">
+              <span class="feed-kind feed-kind--{{ item.kind }}">
+                {% if item.kind == "event" %}Событие{% elif item.kind == "task" %}Задача{% elif item.kind == "message" %}Сообщение{% else %}{{ item.kind }}{% endif %}
+              </span>
+              <strong>{{ item.title }}</strong>
+              <small>
+                {% if item.kind == "event" or item.kind == "task" %}
+                  {{ item.meta|date_ru }}
+                {% else %}
+                  {{ item.meta }}
+                {% endif %}
+              </small>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <strong>Сегодня пока спокойно.</strong>
+          <a class="btn secondary small" href="/events/">Добавить событие</a>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="split" style="margin-top: 1rem;">
+    <article class="surface" data-reveal>
+      <div class="card-row">
+        <span class="stat-token"><i data-lucide="calendar-days"></i></span>
+        <div>
+          <h2>Скоро</h2>
+          <p class="meta">Даты, которые лучше не искать в переписках.</p>
+        </div>
+      </div>
+      {% if family and upcoming_events %}
+        <ul class="list">
+          {% for event in upcoming_events %}
+            <li>
+              <strong>{{ event.title }}</strong>
+              <div class="meta">
+                {% if event.kind == "birthday" %}{{ event.next_date|date_ru_short }}{% else %}{{ event.next_date|date_ru }}{% endif %}
+                {% if event.member %} · {{ event.member }}{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state">
+          <strong>Ближайших событий пока нет.</strong>
+          <a class="btn secondary small" href="/events/">Создать событие</a>
+        </div>
+      {% endif %}
+      <div class="card-actions"><a class="btn secondary" href="/events/">К событиям</a></div>
+    </article>
+
+    <article class="surface" data-reveal>
+      <div class="card-row">
+        <span class="stat-token"><i data-lucide="messages-square"></i></span>
+        <div>
+          <h2>Домашний пульс</h2>
+          <p class="meta">Задачи и последнее сообщение семьи.</p>
+        </div>
+      </div>
+      {% if family and upcoming_tasks %}
+        <ul class="list">
+          {% for task in upcoming_tasks %}
+            <li>
+              <strong>{{ task.title }}</strong>
+              <div class="meta">Срок: {{ task.due_date|date_ru }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state">
+          <strong>Срочных задач нет.</strong>
+          <a class="btn secondary small" href="/tasks/">Добавить задачу</a>
+        </div>
+      {% endif %}
+      {% if latest_message %}
+        <div class="floating-note" style="margin-top: 1rem;">
+          <strong>{{ latest_message.sender.get_full_name|default:latest_message.sender.username }}</strong>
+          <p class="meta">{{ latest_message.text|truncatechars:140 }}</p>
+        </div>
+      {% endif %}
+      <div class="card-actions">
+        <a class="btn secondary" href="/tasks/">К задачам</a>
+        <a class="btn secondary" href="/messages/">Сообщения</a>
+      </div>
+    </article>
+  </section>
+
+  <section class="module-grid" style="margin-top: 1rem;">
+    <a class="module-card" href="/cookbook/" data-reveal>
+      <span class="module-card__icon"><i data-lucide="utensils"></i></span>
+      <span><strong>Рецепты</strong><p class="meta">Блюда и списки покупок.</p></span>
+    </a>
+    <a class="module-card" href="{% url 'cookbook:shopping_list_index' %}" data-reveal>
+      <span class="module-card__icon"><i data-lucide="shopping-basket"></i></span>
+      <span><strong>Список покупок</strong><p class="meta">Семейные списки покупок.</p></span>
+    </a>
+    <a class="module-card" href="/health/" data-reveal>
+      <span class="module-card__icon"><i data-lucide="heart-pulse"></i></span>
+      <span><strong>Здоровье</strong><p class="meta">Карты, лекарства, напоминания.</p></span>
+    </a>
+    <a class="module-card" href="/capsule/" data-reveal>
+      <span class="module-card__icon"><i data-lucide="archive"></i></span>
+      <span><strong>Капсулы</strong><p class="meta">Письма и память на будущее.</p></span>
+    </a>
+  </section>
+{% endblock %}

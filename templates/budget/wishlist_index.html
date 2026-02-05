@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Списки желаний{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero planner-hero" data-reveal>
+  <div>
+    <span class="kicker">подарки</span>
+    <h1>Списки желаний</h1>
+    <p>Каждый ведёт свои желания, а близкие могут забронировать подарок без лишних вопросов.</p>
+  </div>
+</section>
+
+<section class="wishlist-layout" data-reveal>
+  <aside class="surface wishlist-sidebar">
+    <h2>Фильтр</h2>
+    <form method="get" class="wishlist-filter">
+      <input type="hidden" name="family" value="{{ family.id }}">
+      <input name="wish_q" value="{{ wish_query }}" placeholder="Чей список или что подарить">
+      <select name="wish_member">
+        <option value="">Все списки</option>
+        {% for member in members %}
+          <option value="{{ member.id }}" {% if wish_member == member.id|stringformat:"s" %}selected{% endif %}>{{ member }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn small secondary" type="submit">Найти</button>
+    </form>
+
+    <h2>Мой список</h2>
+    <form method="post" action="{% url 'budget:wishlist_create' %}?family={{ family.id }}" class="wishlist-create">
+      {% csrf_token %}
+      <label>Название</label>
+      <input name="title" value="Мой список желаний">
+      <button class="btn" type="submit">Создать</button>
+    </form>
+  </aside>
+
+  <div class="wishlist-board">
+    {% for wl in wishlists %}
+      <article class="wishlist-card">
+        <header class="wishlist-card__head">
+          <div>
+            <span class="wishlist-person">{{ wl.owner_member }}</span>
+            <h2>{{ wl.title }}</h2>
+          </div>
+          {% if wl.can_manage %}
+            <div class="card-actions">
+              <a class="btn small secondary" href="{% url 'budget:wishlist_update' wl.id %}">Изменить</a>
+              <form method="post" action="{% url 'budget:wishlist_delete' wl.id %}">
+                {% csrf_token %}
+                <button class="btn small secondary danger-soft" type="submit">Удалить</button>
+              </form>
+            </div>
+          {% endif %}
+        </header>
+
+        <div class="wishlist-items">
+          {% for item in wl.items.all %}
+            <article class="wish-item {% if item.is_reserved %}is-reserved{% endif %}">
+              <div class="wish-item__main">
+                <strong>{{ item.title }}</strong>
+                {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+                <div class="wish-item__meta">
+                  {% if item.url %}<a href="{{ item.url }}" target="_blank" rel="noopener">Ссылка</a>{% endif %}
+                  {% if item.price_estimate %}<span>≈ {{ item.price_estimate }}</span>{% endif %}
+                </div>
+              </div>
+              <div class="wish-item__actions">
+                {% if wl.can_manage %}
+                  {% if item.is_reserved %}
+                    <span class="badge done">Забронировано</span>
+                  {% else %}
+                    <span class="badge other">Свободно</span>
+                  {% endif %}
+                {% else %}
+                  {% if item.is_reserved %}
+                    {% if item.reserved_by_id == request.user.id %}
+                      <form method="post" action="{% url 'budget:wishlist_item_reserve' item.id %}">
+                        {% csrf_token %}
+                        <button class="btn small secondary" type="submit">Снять бронь</button>
+                      </form>
+                    {% else %}
+                      <span class="badge done">Забронировано</span>
+                    {% endif %}
+                  {% else %}
+                    <form method="post" action="{% url 'budget:wishlist_item_reserve' item.id %}">
+                      {% csrf_token %}
+                      <button class="btn small secondary" type="submit">Забронировать</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+                {% if wl.can_manage %}
+                  <details class="inline-editor">
+                    <summary class="btn small secondary">Изменить</summary>
+                    <form method="post" action="{% url 'budget:wishlist_item_update' item.id %}" class="wishlist-item-form">
+                      {% csrf_token %}
+                      <input name="title" value="{{ item.title }}" required>
+                      <input name="url" value="{{ item.url }}" placeholder="Ссылка">
+                      <input name="price_estimate" type="number" step="0.01" value="{{ item.price_estimate|default:'' }}" placeholder="Цена">
+                      <input name="description" value="{{ item.description }}" placeholder="Описание">
+                      <button class="btn small" type="submit">Сохранить</button>
+                    </form>
+                    <form method="post" action="{% url 'budget:wishlist_item_delete' item.id %}">
+                      {% csrf_token %}
+                      <button class="btn small secondary danger-soft" type="submit">Удалить желание</button>
+                    </form>
+                  </details>
+                {% endif %}
+              </div>
+            </article>
+          {% empty %}
+            <p class="meta">Желаний пока нет.</p>
+          {% endfor %}
+        </div>
+
+        {% if wl.can_manage %}
+          <form method="post" action="{% url 'budget:wishlist_item_add' wl.id %}" class="wish-add-row">
+            {% csrf_token %}
+            <input name="title" placeholder="Что подарить?" required>
+            <input name="url" placeholder="Ссылка">
+            <input name="price_estimate" type="number" step="0.01" placeholder="Цена">
+            <button class="btn small" type="submit">Добавить</button>
+          </form>
+        {% endif %}
+      </article>
+    {% empty %}
+      <div class="empty-state">Пока нет списков желаний.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

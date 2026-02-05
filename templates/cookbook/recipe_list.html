@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% load kinnet_roles %}
+{% block title %}Рецепты — KinNet{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero planner-hero" data-reveal>
+  <div>
+    <span class="kicker">домашняя кухня</span>
+    <h1>Рецепты</h1>
+    <p>Рецепты выбранной семьи: любой можно превратить в список покупок.</p>
+    <div class="card-actions">
+      {% role_gate "owner,admin" %}
+      <a class="btn" href="{% url 'cookbook:recipe_create' %}?family={{ family.id }}"><i data-lucide="plus"></i>Рецепт</a>
+      {% endrole_gate %}
+      <a class="btn secondary" href="{% url 'cookbook:shopping_list_index' %}?family={{ family.id }}">Списки покупок</a>
+    </div>
+  </div>
+</section>
+
+<div class="module-grid" id="recipe-list">
+  {% for recipe in recipes %}
+    {% include "cookbook/_recipe_card.html" %}
+  {% empty %}
+    <div class="empty-state">Пока нет рецептов.</div>
+  {% endfor %}
+</div>
+{% endblock %}

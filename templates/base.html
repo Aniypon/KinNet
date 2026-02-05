@@ -1,0 +1,175 @@
+{% load static vite %}<!doctype html>
+<html lang="ru" data-theme="{{ ui_theme|default:'light' }}" data-elder="{% if ui_elder_mode %}1{% else %}0{% endif %}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#c8684b" />
+    <title>{% block title %}KinNet — Семейная сеть{% endblock %}</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon-192.svg' %}" />
+    <link rel="apple-touch-icon" href="{% static 'icons/icon-192.svg' %}" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    {% vite_asset 'src/main.js' %}
+  </head>
+  <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} data-user-authenticated="1"{% endif %}>
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+    <div
+      id="kinnet-root"
+      class="app-shell"
+      data-onboarding="{% if request.user.is_authenticated and not request.session.kinnet_onboarded %}1{% else %}0{% endif %}"
+    >
+      <aside class="side-rail" aria-label="Основная навигация">
+        <a class="brand-mark" href="/" aria-label="KinNet">
+          <span class="brand-mark__glyph">K</span>
+          <span>
+            <strong>KinNet</strong>
+            <small>семейная сеть</small>
+          </span>
+        </a>
+
+        <nav class="side-nav">
+          {% with p=request.path %}
+          <a href="/" {% if p == '/' %}class="active" aria-current="page"{% endif %} data-nav-section="today">
+            <i data-lucide="sun"></i><span>Сегодня</span>
+          </a>
+          <a href="/members/" {% if '/members' in p or '/families' in p or '/family-tree' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="users-round"></i><span>Семья</span>
+          </a>
+          <a href="/events/" {% if '/events' in p or '/calendar' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="calendar-heart"></i><span>События</span>
+          </a>
+          <a href="/tasks/" {% if '/tasks' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="list-checks"></i><span>Задачи</span>
+          </a>
+          <a href="/messages/" {% if '/messages' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="messages-square"></i><span>Сообщения</span>
+            {% if nav_unread_messages %}<span class="nav-badge">{{ nav_unread_messages }}</span>{% endif %}
+          </a>
+          {% endwith %}
+        </nav>
+
+        <div class="side-nav side-nav--secondary">
+          {% with p=request.path %}
+          <a href="/cookbook/" {% if '/cookbook' in p and '/cookbook/shopping' not in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="utensils"></i><span>Рецепты</span>
+          </a>
+          <a href="/budget/" {% if '/budget' in p and '/budget/wishlists' not in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="wallet-cards"></i><span>Бюджет</span>
+          </a>
+          <a href="/budget/wishlists/" {% if '/budget/wishlists' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="gift"></i><span>Желания</span>
+          </a>
+          <a href="/health/" {% if '/health' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="heart-pulse"></i><span>Здоровье</span>
+          </a>
+          <a href="/goals/" {% if '/goals' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="target"></i><span>Общие цели</span>
+          </a>
+          <a href="/cookbook/shopping/" {% if '/cookbook/shopping' in p %}class="active" aria-current="page"{% endif %}>
+            <i data-lucide="shopping-basket"></i><span>Список покупок</span>
+          </a>
+          <details class="side-more" {% if '/capsule' in p or '/polls' in p or '/badges' in p or '/album' in p %}open{% endif %}>
+            <summary {% if '/capsule' in p or '/polls' in p or '/badges' in p or '/album' in p %}class="active"{% endif %}>
+              <i data-lucide="layout-grid"></i><span>Ещё</span>
+            </summary>
+            <div class="side-more__panel">
+              <a href="/capsule/" {% if '/capsule' in p %}class="active" aria-current="page"{% endif %}>
+                <i data-lucide="archive"></i><span>Капсулы</span>
+              </a>
+              <a href="/polls/" {% if '/polls' in p %}class="active" aria-current="page"{% endif %}>
+                <i data-lucide="vote"></i><span>Опросы</span>
+              </a>
+              <a href="/badges/" {% if '/badges' in p %}class="active" aria-current="page"{% endif %}>
+                <i data-lucide="sparkles"></i><span>Достижения</span>
+              </a>
+              <a href="/album/" {% if '/album' in p %}class="active" aria-current="page"{% endif %}>
+                <i data-lucide="images"></i><span>Альбом</span>
+              </a>
+            </div>
+          </details>
+          {% endwith %}
+        </div>
+      </aside>
+
+      <div class="content-shell">
+        <header class="topbar">
+          <div class="topbar__context">
+            {% if request.user.is_authenticated and all_families %}
+              <form method="post" action="{% url 'set_active_family' %}" class="family-switcher-form">
+                {% csrf_token %}
+                <label class="kicker" for="topbar-family-select">семья</label>
+                <select
+                  id="topbar-family-select"
+                  name="family_id"
+                  class="family-switcher-select"
+                  onchange="this.form.submit()"
+                  aria-label="Выбрать семью"
+                >
+                  {% for f in all_families %}
+                    <option value="{{ f.id }}" {% if active_family and active_family.id == f.id %}selected{% endif %}>
+                      {{ f.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </form>
+            {% else %}
+              <span class="kicker">семейный центр</span>
+              <strong>{% if request.user.is_authenticated %}{{ request.user.get_full_name|default:request.user.username }}{% else %}Гость{% endif %}</strong>
+            {% endif %}
+          </div>
+
+          <div class="topbar__actions">
+            <form method="post" action="{% url 'ui_set_pref' %}" data-tour="elder" class="inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="elder" value="{% if ui_elder_mode %}0{% else %}1{% endif %}" />
+              <button class="btn secondary elder-toggle-btn {% if ui_elder_mode %}elder-toggle-btn--active{% endif %}" type="submit" title="Режим для старшего поколения" aria-label="Режим для старшего поколения">
+                <i data-lucide="accessibility"></i>
+                <span class="elder-toggle-label">{% if ui_elder_mode %}Обычный{% else %}Крупный{% endif %}</span>
+              </button>
+            </form>
+            <form method="post" action="{% url 'ui_set_pref' %}" class="inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="theme" value="{% if ui_theme == 'dark' %}light{% else %}dark{% endif %}" />
+              <button class="icon-button" type="submit" title="Тёмная тема" aria-label="Тёмная тема">
+                <i data-lucide="{% if ui_theme == 'dark' %}sun{% else %}moon{% endif %}"></i>
+              </button>
+            </form>
+
+            {% if request.user.is_authenticated %}
+              <a class="profile-chip" href="/profile/">
+                <i data-lucide="user-round"></i>
+                <span>{{ request.user.get_full_name|default:request.user.username }}</span>
+              </a>
+              <form method="post" action="/accounts/logout/" class="inline-form">
+                {% csrf_token %}
+                <button class="btn secondary" type="submit">Выйти</button>
+              </form>
+            {% else %}
+              <a class="btn secondary" href="/accounts/login/">Войти</a>
+              <a class="btn" href="/signup/">Регистрация</a>
+            {% endif %}
+          </div>
+        </header>
+
+        <main id="main" class="main-stage">
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+
+      {% if request.user.is_authenticated %}
+      <nav class="bottom-nav" aria-label="Быстрая навигация">
+        <a href="/" {% if request.path == '/' %}class="active"{% endif %}><i data-lucide="sun"></i><span>Сегодня</span></a>
+        <a href="/members/" {% if '/members' in request.path or '/families' in request.path %}class="active"{% endif %}><i data-lucide="users-round"></i><span>Семья</span></a>
+        <a href="/tasks/" {% if '/tasks' in request.path %}class="active"{% endif %}><i data-lucide="list-checks"></i><span>Задачи</span></a>
+        <a href="/goals/" {% if '/goals' in request.path %}class="active"{% endif %}><i data-lucide="target"></i><span>Цели</span></a>
+        <a href="/cookbook/shopping/" {% if '/cookbook/shopping' in request.path %}class="active"{% endif %}><i data-lucide="shopping-basket"></i><span>Покупки</span></a>
+        <a href="/events/" {% if '/events' in request.path or '/calendar' in request.path %}class="active"{% endif %}><i data-lucide="calendar-heart"></i><span>События</span></a>
+        <a href="/messages/" {% if '/messages' in request.path %}class="active"{% endif %}><i data-lucide="messages-square"></i><span>Чат</span></a>
+      </nav>
+      {% endif %}
+    </div>
+  </body>
+</html>

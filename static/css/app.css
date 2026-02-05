@@ -1,0 +1,133 @@
+/* KinNet design tokens and high-level layout primitives. Tailwind utility
+ * classes are loaded from a CDN (see base.html) and provide most of the
+ * styling; this file holds the rest: theme variables, elder mode overrides,
+ * bottom nav, swipeable cards and confetti container. */
+
+:root {
+  color-scheme: light;
+  --bg: #f7f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --accent: #7c3aed;
+  --accent-soft: #ede9fe;
+  --danger: #b91c1c;
+  --radius: 16px;
+  --font-base: 16px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f172a;
+  --card: #1e293b;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --accent: #a78bfa;
+  --accent-soft: #312e81;
+}
+
+[data-theme="elder"] {
+  --bg: #fffbe9;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #374151;
+  --accent: #b45309;
+  --accent-soft: #fde68a;
+  --font-base: 21px;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-base);
+}
+
+.kinnet-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 20px 120px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 6px 24px rgba(31, 41, 55, 0.08);
+}
+
+.btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.btn.secondary { background: var(--accent-soft); color: var(--text); }
+.btn.danger { background: var(--danger); }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(31, 41, 55, 0.18); }
+
+.bottom-nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  background: var(--card);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 8px 4px env(safe-area-inset-bottom, 8px);
+  z-index: 50;
+}
+.bottom-nav a {
+  text-decoration: none;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 4px;
+  border-radius: 10px;
+}
+.bottom-nav a.active { color: var(--accent); background: var(--accent-soft); }
+.bottom-nav .icon { font-size: 20px; }
+
+.swipe-card {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.swipe-card .swipe-content {
+  transition: transform 0.18s ease;
+  background: var(--card);
+}
+.swipe-card .swipe-actions {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 18px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.swipe-card .swipe-actions .left { color: #16a34a; }
+.swipe-card .swipe-actions .right { color: var(--danger); }
+
+#confetti-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+}
+
+.shepherd-element { z-index: 80; }
+
+[data-theme="elder"] .btn { padding: 14px 20px; font-size: 1.05rem; }
+[data-theme="elder"] a { text-decoration: underline; }
+[data-theme="elder"] .bottom-nav a { font-size: 14px; }

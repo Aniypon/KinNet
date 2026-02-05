@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Событие{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 720px; margin: 0 auto;">
+    <h2>{{ event.title }}</h2>
+    <div class="meta">
+      {% if event.kind == "birthday" %}
+        {{ event.date|date_ru_short }}
+      {% else %}
+        {{ event.date|date_ru }}
+      {% endif %}
+      · {{ event.get_kind_display }}
+      {% if event.recurrence != "none" %} · {{ event.get_recurrence_display }}{% endif %}
+    </div>
+    {% if event.member %}<div class="meta">Связано с: {{ event.member }}</div>{% endif %}
+    {% if event.description %}<p class="meta">{{ event.description }}</p>{% endif %}
+
+    {% if event.tags.exists %}
+      <div class="meta">Метки: {% for tag in event.tags.all %}<span class="badge other">{{ tag.name }}</span> {% endfor %}</div>
+    {% endif %}
+  </section>
+
+  <section class="card" style="max-width: 720px; margin: 16px auto 0;">
+    <h3>Комментарии</h3>
+    {% if comments %}
+      <ul>
+        {% for comment in comments %}
+          <li>
+            <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+            <div class="meta">{{ comment.text }}</div>
+            <div class="meta">{{ comment.created_at|date_ru }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta">Комментариев пока нет.</p>
+    {% endif %}
+
+    <form method="post" style="margin-top: 12px;">
+      {% csrf_token %}
+      {% include "partials/form_fields.html" with form=comment_form %}
+      <button class="btn" type="submit" name="comment-text" value="1">Отправить</button>
+    </form>
+  </section>
+{% endblock %}

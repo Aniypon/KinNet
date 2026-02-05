@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Подтвердить приглашение{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 600px; margin: 0 auto;">
+    <h2>Приглашение в семью</h2>
+    <p>Вы приглашены в семью <strong>{{ family.name }}</strong>.</p>
+    <p class="meta">Никнейм: @{{ invitation.username }}</p>
+    <form method="post">
+      {% csrf_token %}
+      <button class="btn" type="submit">Принять приглашение</button>
+      <a class="btn secondary" href="/">Отмена</a>
+    </form>
+  </section>
+{% endblock %}
