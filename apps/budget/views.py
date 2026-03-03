@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -13,10 +15,9 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from django.contrib.auth import get_user_model
-
 from core.family_context import current_family as _current_family, get_user_families as _user_families
 from core.models import Family, FamilyMember
+from .models import Expense, ExpenseContribution, Wishlist, WishlistItem
 
 User = get_user_model()
 
@@ -65,8 +66,6 @@ def _parse_contribution_rows(request) -> list[tuple[int, Decimal]]:
             continue
         rows.append((int(raw_id), amount))
     return rows
-
-from .models import Expense, ExpenseContribution, Wishlist, WishlistItem
 
 
 def _family_url(name, family):
@@ -326,18 +325,19 @@ def expense_create(request):
             amount = Decimal(request.POST.get("amount", "0"))
         except InvalidOperation:
             amount = Decimal("0")
-        expense = Expense.objects.create(
-            family=family,
-            payer=_resolve_payer(request, family),
-            title=request.POST.get("title", "Расход"),
-            amount=amount,
-            category=request.POST.get("category", ""),
-            spent_on=_parse_user_date(request.POST.get("spent_on", "")),
-            notes=request.POST.get("notes", ""),
-        )
-        mode = request.POST.get("payer_mode", "single")
-        rows = _parse_contribution_rows(request) if mode == "multi" else []
-        _apply_contributions(expense, mode, rows)
+        with transaction.atomic():
+            expense = Expense.objects.create(
+                family=family,
+                payer=_resolve_payer(request, family),
+                title=request.POST.get("title", "Расход"),
+                amount=amount,
+                category=request.POST.get("category", ""),
+                spent_on=_parse_user_date(request.POST.get("spent_on", "")),
+                notes=request.POST.get("notes", ""),
+            )
+            mode = request.POST.get("payer_mode", "single")
+            rows = _parse_contribution_rows(request) if mode == "multi" else []
+            _apply_contributions(expense, mode, rows)
         if request.headers.get("HX-Request"):
             return render(request, "budget/_expense_row.html", {"expense": expense})
         return redirect(_family_url("budget:expense_list", family))

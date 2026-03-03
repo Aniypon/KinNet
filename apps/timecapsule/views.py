@@ -2,30 +2,16 @@
 
 from __future__ import annotations
 
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from datetime import datetime
-
-from django.utils.dateparse import parse_datetime
-
-
-def _parse_local_datetime(value: str):
-    value = (value or "").strip()
-    if not value:
-        return None
-    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(value, fmt)
-        except ValueError:
-            pass
-    return parse_datetime(value)
 
 from core.family_context import current_family as _current_family, get_user_families as _user_families
 from core.permissions import has_role
+from core.utils import parse_local_datetime as _parse_local_datetime
 
 from .models import Capsule
 

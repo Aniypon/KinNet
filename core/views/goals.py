@@ -47,12 +47,13 @@ def goals(request):
 	total_collected = Decimal("0")
 	for goal in all_goals:
 		target = goal.target_amount or Decimal("0")
-		collected = sum((c.amount for c in goal.contributions.all()), Decimal("0"))
+		contribs = list(goal.contributions.all())
+		collected = sum((c.amount for c in contribs), Decimal("0"))
 		goal.collected = collected
 		goal.remaining = max(target - collected, Decimal("0"))
 		goal.pct = int(min(collected / target * 100, 100)) if target > 0 else 0
 		goal.is_done = target > 0 and collected >= target
-		goal.contributors_count = len({c.user_id for c in goal.contributions.all()})
+		goal.contributors_count = len({c.user_id for c in contribs})
 		if goal.due_date:
 			delta = (goal.due_date - today).days
 			goal.days_left = delta

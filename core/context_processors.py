@@ -4,39 +4,13 @@ from __future__ import annotations
 
 
 def active_family(request) -> dict:
-    """Expose the currently selected family and all user families to every template.
-
-    Family selection priority: session > first available.
-    The session key is set by the set_active_family view.
-    """
+    """Expose the currently selected family and all user families to every template."""
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return {"active_family": None, "all_families": []}
 
-    from django.db.models import Q
+    from .family_context import current_family
 
-    from .models import Family
-
-    families = Family.objects.filter(
-        Q(memberships__user=request.user) | Q(created_by=request.user)
-    ).distinct()
-
-    session = getattr(request, "session", None)
-    family_id = (
-        request.GET.get("family")
-        or request.POST.get("family")
-        or (session.get("active_family_id") if session else None)
-    )
-
-    family = None
-    if family_id:
-        family = families.filter(id=family_id).first()
-    if family is None:
-        family = families.first()
-
-    if family and session is not None:
-        session["active_family_id"] = family.id
-        session.modified = True
-
+    family, families = current_family(request)
     return {"active_family": family, "all_families": families}
 
 
@@ -65,20 +39,27 @@ def navigation_badges(request) -> dict:
 
     from .models import Family, Message, MessageReadState
 
-    families = Family.objects.filter(Q(memberships__user=request.user) | Q(created_by=request.user)).distinct()
+    family_ids = list(
+        Family.objects.filter(Q(memberships__user=request.user) | Q(created_by=request.user))
+        .distinct()
+        .values_list("id", flat=True)
+    )
+    if not family_ids:
+        return {"nav_unread_messages": 0}
 
-    # Fetch all read states in one query, keyed by family_id
     read_states = {
         s.family_id: s.last_read_message_id
-        for s in MessageReadState.objects.filter(family__in=families, user=request.user)
+        for s in MessageReadState.objects.filter(family_id__in=family_ids, user=request.user)
     }
 
-    unread_total = 0
-    for fam in families:
-        last_read_id = read_states.get(fam.id)
-        qs = Message.objects.filter(family=fam).exclude(sender=request.user)
-        if last_read_id:
-            qs = qs.filter(id__gt=last_read_id)
-        unread_total += qs.count()
+    # Build a single query instead of one COUNT per family.
+    unread_q = Q()
+    for fid in family_ids:
+        last_read = read_states.get(fid)
+        if last_read:
+            unread_q |= Q(family_id=fid, id__gt=last_read)
+        else:
+            unread_q |= Q(family_id=fid)
 
+    unread_total = Message.objects.filter(unread_q).exclude(sender=request.user).count()
     return {"nav_unread_messages": unread_total}

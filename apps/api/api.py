@@ -7,15 +7,19 @@ Mounted at ``/api/``. Authentication uses Django's session cookie by default
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from ninja import ModelSchema, NinjaAPI, Schema
 from ninja.security import django_auth
 
+from django.conf import settings
+
 from core.family_context import get_user_families as _user_families
 from core.models import Event, FamilyMember, Goal, Message, Task
+
+from apps.notifications.models import Notification, PushSubscription
 
 User = get_user_model()
 
@@ -56,7 +60,7 @@ class TaskIn(Schema):
     family_id: int
     title: str
     description: str = ""
-    status: str = "todo"
+    status: Literal["todo", "in_progress", "done"] = "todo"
     due_date: Optional[date] = None
 
 
@@ -161,11 +165,6 @@ def post_message(request, payload: MessageIn):
 # ---------------------------------------------------------------------------
 # Web push / notifications
 # ---------------------------------------------------------------------------
-from django.conf import settings  # noqa: E402
-
-from apps.notifications.models import Notification, PushSubscription  # noqa: E402
-
-
 class PushKeys(Schema):
     p256dh: str
     auth: str

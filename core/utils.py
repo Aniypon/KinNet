@@ -1,5 +1,24 @@
 from calendar import monthrange
-from datetime import date as date_type, timedelta
+from datetime import date as date_type, datetime, timedelta
+
+from django.utils.dateparse import parse_datetime
+
+
+def parse_local_datetime(value: str):
+    """Parse a naive local datetime from common Russian date formats.
+
+    Returns a naive datetime (caller must make it timezone-aware).
+    Falls back to Django's parse_datetime for ISO 8601 strings.
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            pass
+    return parse_datetime(value)
 
 
 def _safe_date(year: int, month: int, day: int) -> date_type:

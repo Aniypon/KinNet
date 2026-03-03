@@ -58,6 +58,8 @@ def medication_create(request, member_id: int):
         FamilyMember.objects.filter(family__in=_user_families(request.user)),
         pk=member_id,
     )
+    if not has_role(request.user, member.family, ("owner", "admin", "parent")) and member.user != request.user:
+        raise PermissionDenied
     if request.method == "POST":
         Medication.objects.create(
             member=member,

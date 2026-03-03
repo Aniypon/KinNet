@@ -176,64 +176,6 @@ def family_tree_edit(request):
 
 
 @login_required
-def family_tree_edit_legacy(request):
-	family, families = current_family(request)
-	if not family:
-		return redirect("families")
-	if not has_role(request.user, family, {"owner", "admin"}):
-		return redirect("family_tree_graph")
-
-	members = family.family_members.all()
-	available_members = family.family_members.filter(in_tree=False)
-
-	if request.method == "POST":
-		member_id = request.POST.get("member_id")
-		if not member_id:
-			return redirect("family_tree_edit")
-		parent1_id = request.POST.get("parent1") or None
-		parent2_id = request.POST.get("parent2") or None
-		children_ids = request.POST.getlist("children")
-
-		member = get_object_or_404(FamilyMember, id=member_id, family=family)
-		member.parent1_id = int(parent1_id) if parent1_id else None
-		member.parent2_id = int(parent2_id) if parent2_id else None
-		member.save(update_fields=["parent1", "parent2"])
-
-		for child in members:
-			is_selected = str(child.id) in children_ids
-			if is_selected:
-				if child.parent1_id in (None, member.id):
-					child.parent1 = member
-				elif child.parent2_id in (None, member.id):
-					child.parent2 = member
-				child.save(update_fields=["parent1", "parent2"])
-			else:
-				if child.parent1_id == member.id:
-					child.parent1 = None
-				if child.parent2_id == member.id:
-					child.parent2 = None
-				child.save(update_fields=["parent1", "parent2"])
-
-		return redirect("family_tree_edit")
-
-	tree_data = build_tree_data(family, include_all=True)
-	tree_issues = [issue.__dict__ for issue in validate_family_tree(family)]
-
-	return render(
-		request,
-		"family_tree_edit.html",
-		{
-			"family": family,
-			"families": families,
-			"members": members,
-			"available_members": available_members,
-			"tree_data": tree_data,
-			"tree_issues": tree_issues,
-		},
-	)
-
-
-@login_required
 def family_tree_order_update(request):
 	if request.method != "POST":
 		return JsonResponse({"error": "Method not allowed"}, status=405)
