@@ -103,7 +103,7 @@ def me(request):
 
 @api.get("/families", response=List[FamilyOut])
 def list_families(request):
-    return list(_user_families(request.user).values())
+    return list(_user_families(request.user))
 
 
 @api.get("/families/{family_id}/members", response=List[MemberOut])

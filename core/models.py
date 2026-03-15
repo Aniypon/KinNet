@@ -203,11 +203,18 @@ class Tag(models.Model):
 		("task", "Задачи"),
 		("event", "События"),
 	]
+	family = models.ForeignKey(
+		Family,
+		on_delete=models.CASCADE,
+		related_name="tags",
+		null=True,
+		blank=True,
+	)
 	name = models.CharField(max_length=60)
 	kind = models.CharField(max_length=20, choices=KIND_CHOICES)
 
 	class Meta:
-		unique_together = ("name", "kind")
+		unique_together = ("family", "name", "kind")
 		ordering = ["name"]
 
 	def __str__(self) -> str:

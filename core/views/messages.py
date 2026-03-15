@@ -56,9 +56,15 @@ def messages(request):
 		if thread in {"general", "event", "task"}:
 			items = items.filter(thread_type=thread)
 		elif thread.startswith("event:"):
-			items = items.filter(thread_type="event", event_id=thread.split(":", 1)[1])
+			try:
+				items = items.filter(thread_type="event", event_id=int(thread.split(":", 1)[1]))
+			except (ValueError, IndexError):
+				pass
 		elif thread.startswith("task:"):
-			items = items.filter(thread_type="task", task_id=thread.split(":", 1)[1])
+			try:
+				items = items.filter(thread_type="task", task_id=int(thread.split(":", 1)[1]))
+			except (ValueError, IndexError):
+				pass
 	last_message = items.last()
 	if last_message:
 		MessageReadState.objects.update_or_create(
@@ -102,9 +108,15 @@ def messages_api(request):
 		if thread in {"general", "event", "task"}:
 			items = items.filter(thread_type=thread)
 		elif thread.startswith("event:"):
-			items = items.filter(thread_type="event", event_id=thread.split(":", 1)[1])
+			try:
+				items = items.filter(thread_type="event", event_id=int(thread.split(":", 1)[1]))
+			except (ValueError, IndexError):
+				pass
 		elif thread.startswith("task:"):
-			items = items.filter(thread_type="task", task_id=thread.split(":", 1)[1])
+			try:
+				items = items.filter(thread_type="task", task_id=int(thread.split(":", 1)[1]))
+			except (ValueError, IndexError):
+				pass
 	after_id = request.GET.get("after")
 	if after_id and str(after_id).isdigit():
 		items = items.filter(id__gt=int(after_id))
@@ -172,8 +184,13 @@ def message_pin_api(request):
 		return JsonResponse({"error": "Семья не найдена."}, status=404)
 	if not has_family_access(request.user, family):
 		return JsonResponse({"error": "Forbidden"}, status=403)
+	if not has_role(request.user, family, {"owner", "admin"}):
+		return JsonResponse({"error": "Недостаточно прав."}, status=403)
 
-	payload = json.loads(request.body.decode("utf-8"))
+	try:
+		payload = json.loads(request.body.decode("utf-8"))
+	except json.JSONDecodeError:
+		return JsonResponse({"error": "Неверный формат запроса."}, status=400)
 	message = get_object_or_404(Message, id=payload.get("message"), family=family)
 	message.is_pinned = not message.is_pinned
 	message.save(update_fields=["is_pinned"])
@@ -193,7 +210,10 @@ def message_reaction_api(request):
 		return JsonResponse({"error": "Forbidden"}, status=403)
 	can_manage = has_role(request.user, family, {"owner", "admin"})
 
-	payload = json.loads(request.body.decode("utf-8"))
+	try:
+		payload = json.loads(request.body.decode("utf-8"))
+	except json.JSONDecodeError:
+		return JsonResponse({"error": "Неверный формат запроса."}, status=400)
 	message = get_object_or_404(Message, id=payload.get("message"), family=family)
 	emoji = (payload.get("emoji") or "").strip()[:12]
 	if emoji not in {"❤️", "👍", "😂", "🙏"}:
@@ -219,7 +239,10 @@ def message_typing_api(request):
 
 	from django.utils import timezone
 
-	payload = json.loads(request.body.decode("utf-8"))
+	try:
+		payload = json.loads(request.body.decode("utf-8"))
+	except json.JSONDecodeError:
+		return JsonResponse({"error": "Неверный формат запроса."}, status=400)
 	typing = cache.get(chat_typing_key(family.id), {})
 	user_key = str(request.user.id)
 	if payload.get("typing"):

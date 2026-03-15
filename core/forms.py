@@ -192,8 +192,6 @@ class UserProfileForm(forms.ModelForm):
     def save(self, commit=True):
         profile = super().save(commit=False)
         user = self.user_instance or profile.user
-        if not self.cleaned_data.get("birth_date"):
-            profile.birth_date = profile.birth_date or timezone.localdate()
         if user is not None:
             user.first_name = self.cleaned_data.get("first_name", "").strip()
             user.last_name = self.cleaned_data.get("last_name", "").strip()
@@ -284,7 +282,7 @@ class EventForm(forms.ModelForm):
             self.fields["member"].queryset = family.family_members.all()
         self.fields["member"].required = False
         self.fields["member"].empty_label = "Без привязки"
-        self.fields["tags"].queryset = Tag.objects.filter(kind="event")
+        self.fields["tags"].queryset = Tag.objects.filter(kind="event", family=family) if family else Tag.objects.none()
         if self.instance and self.instance.kind == "birthday":
             self.fields["recurrence"].initial = "yearly"
 
@@ -330,7 +328,7 @@ class TaskForm(forms.ModelForm):
             self.fields["assignee"].queryset = user_model.objects.filter(
                 family_memberships__family=family
             ).distinct()
-        self.fields["tags"].queryset = Tag.objects.filter(kind="task")
+        self.fields["tags"].queryset = Tag.objects.filter(kind="task", family=family) if family else Tag.objects.none()
 
 
 class TaskChecklistItemForm(forms.ModelForm):
