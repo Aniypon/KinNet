@@ -16,13 +16,8 @@ def deliver_due_capsules() -> int:
     from .models import Capsule
 
     now = timezone.now()
-    delivered = 0
     qs = Capsule.objects.filter(status="scheduled", reveal_at__lte=now)
-    for capsule in qs:
-        capsule.status = "delivered"
-        capsule.delivered_at = now
-        capsule.save(update_fields=["status", "delivered_at"])
-        delivered += 1
+    delivered = qs.update(status="delivered", delivered_at=now)
     logger.info("delivered %s capsules", delivered)
     return delivered
 
@@ -35,11 +30,18 @@ def delete_expired_album_photos() -> int:
     from core.models import FamilyPhoto
 
     cutoff = timezone.now() - timedelta(days=7)
-    deleted = 0
-    for photo in FamilyPhoto.objects.filter(created_at__lte=cutoff):
-        if photo.image:
-            photo.image.delete(save=False)
-        photo.delete()
-        deleted += 1
-    logger.info("deleted %s expired family album photos", deleted)
-    return deleted
+    # Load in chunks to avoid unbounded memory use on large tables.
+    photos = list(FamilyPhoto.objects.filter(created_at__lte=cutoff).only("id", "image"))
+    deleted_ids = []
+    for photo in photos:
+        try:
+            if photo.image:
+                photo.image.delete(save=False)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("failed to delete image file for photo %s: %s", photo.id, exc)
+            continue
+        deleted_ids.append(photo.id)
+
+    count = FamilyPhoto.objects.filter(id__in=deleted_ids).delete()[0] if deleted_ids else 0
+    logger.info("deleted %s expired family album photos", count)
+    return count

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -88,22 +89,37 @@ def family_leave(request, family_id):
 	membership = get_membership(request.user, family)
 	if not membership:
 		return redirect("members")
+
 	remaining_memberships = family.memberships.exclude(user=request.user)
-	next_owner = None
+	next_owner_preview = None
 	if membership.role == "owner" and remaining_memberships.exists():
-		next_owner = (
+		next_owner_preview = (
 			remaining_memberships.filter(role="admin").order_by("joined_at").first()
 			or remaining_memberships.order_by("joined_at").first()
 		)
 
 	if request.method == "POST":
-		if membership.role == "owner" and not family.memberships.exclude(user=request.user).exists():
-			family.delete()
-		else:
-			if next_owner:
-				next_owner.role = "owner"
-				next_owner.save(update_fields=["role"])
-			membership.delete()
+		with transaction.atomic():
+			membership = (
+				FamilyMembership.objects.select_for_update()
+				.filter(family=family, user=request.user)
+				.first()
+			)
+			if membership is None:
+				return redirect("families")
+			remaining = family.memberships.exclude(user=request.user)
+			if membership.role == "owner" and not remaining.exists():
+				family.delete()
+			else:
+				if membership.role == "owner":
+					next_owner = (
+						remaining.filter(role="admin").order_by("joined_at").first()
+						or remaining.order_by("joined_at").first()
+					)
+					if next_owner:
+						next_owner.role = "owner"
+						next_owner.save(update_fields=["role"])
+				membership.delete()
 		return redirect("families")
 
 	return render(
@@ -116,8 +132,8 @@ def family_leave(request, family_id):
 			"action_note": (
 				"Вы единственный участник, поэтому семья будет удалена."
 				if not remaining_memberships.exists()
-				else f"Владельцем станет {next_owner.user.get_full_name() or next_owner.user.username}."
-				if next_owner
+				else f"Владельцем станет {next_owner_preview.user.get_full_name() or next_owner_preview.user.username}."
+				if next_owner_preview
 				else "Ваш доступ к семье будет удалён."
 			),
 		},
@@ -245,12 +261,19 @@ def invitation_accept(request, token):
 def user_suggest(request):
 	query = request.GET.get("q", "").strip()
 	family_id = request.GET.get("family")
+	if not query:
+		return JsonResponse({"results": []})
 	user_model = get_user_model()
-	users = user_model.objects.all()
-	if query:
-		users = users.filter(username__istartswith=query)
-	if family_id:
-		users = users.exclude(family_memberships__family_id=family_id)
+	# Only suggest users already in a family the requester belongs to — prevents
+	# system-wide username enumeration by any authenticated user.
+	requester_families = get_user_families(request.user)
+	users = user_model.objects.filter(
+		family_memberships__family__in=requester_families,
+		username__istartswith=query,
+	).distinct()
+	if family_id and str(family_id).isdigit():
+		if requester_families.filter(id=family_id).exists():
+			users = users.exclude(family_memberships__family_id=family_id)
 	data = list(users.values_list("username", flat=True)[:10])
 	return JsonResponse({"results": data})
 

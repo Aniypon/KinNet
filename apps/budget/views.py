@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponseForbidden
+from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -98,16 +98,16 @@ def _can_manage_wishlist(user, wishlist):
 
 def _current_user_member(family, user):
     membership = family.memberships.filter(user=user).first()
-    member = FamilyMember.objects.filter(family=family, user=user).first()
-    if member is None:
-        member = FamilyMember.objects.create(
-            family=family,
-            user=user,
-            first_name=user.first_name or user.username,
-            last_name=user.last_name,
-            relation="Участник",
-            display_order=membership.display_order if membership else family.family_members.count(),
-        )
+    member, _ = FamilyMember.objects.get_or_create(
+        family=family,
+        user=user,
+        defaults={
+            "first_name": user.first_name or user.username,
+            "last_name": user.last_name,
+            "relation": "Участник",
+            "display_order": membership.display_order if membership else family.family_members.count(),
+        },
+    )
     return member
 
 
@@ -145,20 +145,14 @@ def _period_range(period: str):
 
 def _prev_period_range(period: str):
     """Range immediately before current `period`, for delta comparison. Returns (start, end) or None."""
-    today = timezone.localdate()
-    first_of_month = today.replace(day=1)
-    if period in ("month", "prev"):
-        # compare to month before the current/prev month
-        target_end = first_of_month if period == "month" else first_of_month.replace(day=1)
-        # naive: previous full month before start of current period
-        start_cur, _end, _ = _period_range(period)
-        if start_cur is None:
-            return None
-        prev_end = start_cur
-        prev_last = prev_end - timezone.timedelta(days=1)
-        prev_start = prev_last.replace(day=1)
-        return prev_start, prev_end
-    return None
+    if period not in ("month", "prev"):
+        return None
+    start_cur, _end, _ = _period_range(period)
+    if start_cur is None:
+        return None
+    prev_end = start_cur
+    prev_start = (prev_end - timezone.timedelta(days=1)).replace(day=1)
+    return prev_start, prev_end
 
 
 @login_required
@@ -365,16 +359,17 @@ def expense_update(request, expense_id: int):
             amount = Decimal(request.POST.get("amount", "0"))
         except InvalidOperation:
             amount = expense.amount
-        expense.title = request.POST.get("title", expense.title).strip() or expense.title
-        expense.amount = amount
-        expense.category = request.POST.get("category", expense.category)
-        expense.spent_on = _parse_user_date(request.POST.get("spent_on", "")) or expense.spent_on
-        expense.notes = request.POST.get("notes", "")
-        expense.payer = _resolve_payer(request, family)
-        expense.save()
-        mode = request.POST.get("payer_mode", "single")
-        rows = _parse_contribution_rows(request) if mode == "multi" else []
-        _apply_contributions(expense, mode, rows)
+        with transaction.atomic():
+            expense.title = request.POST.get("title", expense.title).strip() or expense.title
+            expense.amount = amount
+            expense.category = request.POST.get("category", expense.category)
+            expense.spent_on = _parse_user_date(request.POST.get("spent_on", "")) or expense.spent_on
+            expense.notes = request.POST.get("notes", "")
+            expense.payer = _resolve_payer(request, family)
+            expense.save()
+            mode = request.POST.get("payer_mode", "single")
+            rows = _parse_contribution_rows(request) if mode == "multi" else []
+            _apply_contributions(expense, mode, rows)
         return redirect(_family_url("budget:expense_list", family))
     contribs = list(
         expense.contributions.values("contributor_id", "amount").order_by("created_at")
@@ -535,11 +530,13 @@ def wishlist_item_add(request, wishlist_id: int):
                 price = Decimal(request.POST["price_estimate"])
         except InvalidOperation:
             price = None
+        raw_url = request.POST.get("url", "").strip()
+        safe_url = raw_url if raw_url.startswith(("https://", "http://")) else ""
         item = WishlistItem.objects.create(
             wishlist=wishlist,
             title=request.POST.get("title", "Желание"),
             description=request.POST.get("description", ""),
-            url=request.POST.get("url", ""),
+            url=safe_url,
             price_estimate=price,
             share_with_family=True,
         )
@@ -583,7 +580,8 @@ def wishlist_item_update(request, item_id: int):
     if request.method == "POST":
         item.title = request.POST.get("title", "").strip() or item.title
         item.description = request.POST.get("description", "").strip()
-        item.url = request.POST.get("url", "").strip()
+        raw_url = request.POST.get("url", "").strip()
+        item.url = raw_url if raw_url.startswith(("https://", "http://")) else ""
         try:
             item.price_estimate = Decimal(request.POST["price_estimate"]) if request.POST.get("price_estimate") else None
         except InvalidOperation:

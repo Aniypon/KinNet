@@ -50,9 +50,26 @@ def notify(user, *, title: str, body: str = "", url: str = "", kind: str = "syst
     return note
 
 
-def notify_many(users: Iterable, **kwargs) -> int:
-    count = 0
-    for user in users:
-        notify(user, **kwargs)
-        count += 1
-    return count
+def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", kind: str = "system") -> int:
+    users = list(users)
+    if not users:
+        return 0
+    user_ids = [u.id for u in users]
+
+    notes = Notification.objects.bulk_create([
+        Notification(user=u, kind=kind, title=title, body=body, url=url)
+        for u in users
+    ])
+
+    # Publish SSE + collect subscriptions in a single query
+    subs_by_user: dict[int, list] = {}
+    for sub in PushSubscription.objects.filter(user_id__in=user_ids).select_related():
+        subs_by_user.setdefault(sub.user_id, []).append(sub)
+
+    for note, user in zip(notes, users):
+        payload = {"title": title, "body": body, "url": url or "/", "kind": kind, "id": note.id}
+        pubsub_publish(user.id, payload)
+        for sub in subs_by_user.get(user.id, []):
+            _push(sub, payload)
+
+    return len(notes)

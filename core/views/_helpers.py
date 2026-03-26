@@ -8,6 +8,7 @@ import re
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 
 from ..family_context import get_user_families
@@ -70,21 +71,22 @@ def message_payload(message, request_user=None, can_manage=False):
 	}
 
 
-def chat_typing_key(family_id):
-	return f"family-chat-typing:{family_id}"
+def chat_typing_key(family_id, user_id):
+	return f"family-chat-typing:{family_id}:{user_id}"
 
 
 def active_typers(family, request_user):
 	now = timezone.now().timestamp()
-	typing = cache.get(chat_typing_key(family.id), {})
-	active = {}
-	for user_id, item in typing.items():
-		if int(user_id) == request_user.id:
+	# Each user has an isolated key — no read-modify-write race on shared state.
+	members = family.memberships.values_list("user_id", flat=True)
+	active = []
+	for uid in members:
+		if uid == request_user.id:
 			continue
-		if now - item.get("timestamp", 0) <= 6:
-			active[user_id] = item
-	cache.set(chat_typing_key(family.id), active, timeout=12)
-	return [item["name"] for item in active.values()]
+		item = cache.get(chat_typing_key(family.id, uid))
+		if item and now - item.get("timestamp", 0) <= 6:
+			active.append(item["name"])
+	return active
 
 
 def audit(family, actor, action, entity_type, summary, entity_id="", payload=None):
@@ -165,9 +167,9 @@ def build_tree_data(family, include_all=False):
 			"is_user": bool(member.user_id),
 			"in_tree": member.in_tree,
 			"display_order": member.display_order,
-			"detail_url": f"/members/{member.id}/",
-			"edit_url": f"/members/{member.id}/edit/",
-			"delete_url": f"/members/{member.id}/delete/",
+			"detail_url": reverse("member_detail", args=[member.id]),
+			"edit_url": reverse("member_edit", args=[member.id]),
+			"delete_url": reverse("member_delete", args=[member.id]),
 		}
 		for member in members
 	]

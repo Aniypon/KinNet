@@ -8,6 +8,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
 
 from ..family_context import current_family
 from ..forms import MessageForm
@@ -22,6 +24,24 @@ from ._helpers import (
 	quick_error_response,
 	quick_save_response,
 )
+
+
+def _filter_by_thread(items, thread):
+	if thread == "all":
+		return items
+	if thread in {"general", "event", "task"}:
+		return items.filter(thread_type=thread)
+	if thread.startswith("event:"):
+		try:
+			return items.filter(thread_type="event", event_id=int(thread.split(":", 1)[1]))
+		except (ValueError, IndexError):
+			pass
+	elif thread.startswith("task:"):
+		try:
+			return items.filter(thread_type="task", task_id=int(thread.split(":", 1)[1]))
+		except (ValueError, IndexError):
+			pass
+	return items
 
 
 @login_required
@@ -50,22 +70,12 @@ def messages(request):
 	else:
 		form = MessageForm()
 
-	items = family.messages.select_related("sender", "reply_to", "reply_to__sender", "event", "task").prefetch_related("reactions").order_by("created_at")
+	base_qs = family.messages.select_related("sender", "reply_to", "reply_to__sender", "event", "task").prefetch_related("reactions")
 	thread = request.GET.get("thread", "all")
-	if thread != "all":
-		if thread in {"general", "event", "task"}:
-			items = items.filter(thread_type=thread)
-		elif thread.startswith("event:"):
-			try:
-				items = items.filter(thread_type="event", event_id=int(thread.split(":", 1)[1]))
-			except (ValueError, IndexError):
-				pass
-		elif thread.startswith("task:"):
-			try:
-				items = items.filter(thread_type="task", task_id=int(thread.split(":", 1)[1]))
-			except (ValueError, IndexError):
-				pass
-	last_message = items.last()
+	base_qs = _filter_by_thread(base_qs, thread)
+	items = list(base_qs.order_by("-created_at")[:200])
+	items.reverse()
+	last_message = items[-1] if items else None
 	if last_message:
 		MessageReadState.objects.update_or_create(
 			family=family,
@@ -104,19 +114,7 @@ def messages_api(request):
 
 	items = family.messages.select_related("sender", "reply_to", "reply_to__sender", "event", "task").prefetch_related("reactions").order_by("created_at")
 	thread = request.GET.get("thread", "all")
-	if thread != "all":
-		if thread in {"general", "event", "task"}:
-			items = items.filter(thread_type=thread)
-		elif thread.startswith("event:"):
-			try:
-				items = items.filter(thread_type="event", event_id=int(thread.split(":", 1)[1]))
-			except (ValueError, IndexError):
-				pass
-		elif thread.startswith("task:"):
-			try:
-				items = items.filter(thread_type="task", task_id=int(thread.split(":", 1)[1]))
-			except (ValueError, IndexError):
-				pass
+	items = _filter_by_thread(items, thread)
 	after_id = request.GET.get("after")
 	if after_id and str(after_id).isdigit():
 		items = items.filter(id__gt=int(after_id))
@@ -195,8 +193,7 @@ def message_pin_api(request):
 	message.is_pinned = not message.is_pinned
 	message.save(update_fields=["is_pinned"])
 	audit(family, request.user, "chat", "Message", "Закреп изменён", message.id, {"is_pinned": message.is_pinned})
-	can_manage = has_role(request.user, family, {"owner", "admin"})
-	return JsonResponse({"status": "ok", "message": message_payload(message, request.user, can_manage)})
+	return JsonResponse({"status": "ok", "message": message_payload(message, request.user, can_manage=True)})
 
 
 @login_required
@@ -237,22 +234,18 @@ def message_typing_api(request):
 	if not has_family_access(request.user, family):
 		return JsonResponse({"error": "Forbidden"}, status=403)
 
-	from django.utils import timezone
-
 	try:
 		payload = json.loads(request.body.decode("utf-8"))
 	except json.JSONDecodeError:
 		return JsonResponse({"error": "Неверный формат запроса."}, status=400)
-	typing = cache.get(chat_typing_key(family.id), {})
-	user_key = str(request.user.id)
+	key = chat_typing_key(family.id, request.user.id)
 	if payload.get("typing"):
-		typing[user_key] = {
+		cache.set(key, {
 			"name": request.user.get_full_name() or request.user.username,
 			"timestamp": timezone.now().timestamp(),
-		}
+		}, timeout=12)
 	else:
-		typing.pop(user_key, None)
-	cache.set(chat_typing_key(family.id), typing, timeout=12)
+		cache.delete(key)
 	return JsonResponse({"status": "ok", "typing": active_typers(family, request.user)})
 
 
@@ -265,12 +258,12 @@ def message_delete(request, message_id):
 	if message.sender != request.user:
 		membership = FamilyMembership.objects.filter(family=message.family, user=request.user).first()
 		if not membership or membership.role not in {"owner", "admin"}:
-			return redirect(f"/messages/?family={message.family.id}")
+			return redirect(f"{reverse('messages')}?family={message.family.id}")
 
 	if request.method == "POST":
 		family_id = message.family.id
 		message.delete()
-		return redirect(f"/messages/?family={family_id}")
+		return redirect(f"{reverse('messages')}?family={family_id}")
 
 	return render(
 		request,

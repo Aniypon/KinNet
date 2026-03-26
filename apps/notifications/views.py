@@ -11,7 +11,6 @@ import json
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, StreamingHttpResponse
-from django.views.decorators.csrf import csrf_exempt
 
 from .pubsub import subscribe
 
@@ -26,12 +25,15 @@ def _stream(user_id: int):
         yield f"event: notification\ndata: {json.dumps(payload)}\n\n"
 
 
-@csrf_exempt
 @login_required
 def sse(request: HttpRequest) -> StreamingHttpResponse:
+    # WARNING: each open SSE connection holds one WSGI worker for its lifetime.
+    # Keep gunicorn worker count above expected concurrent SSE clients, or
+    # migrate to an ASGI server (Daphne/Uvicorn) for production SSE support.
     response = StreamingHttpResponse(
         _stream(request.user.id), content_type="text/event-stream"
     )
     response["Cache-Control"] = "no-cache"
-    response["X-Accel-Buffering"] = "no"  # disable nginx buffering
+    response["X-Accel-Buffering"] = "no"
+    response["Connection"] = "keep-alive"
     return response
