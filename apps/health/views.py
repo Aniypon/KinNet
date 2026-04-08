@@ -27,11 +27,11 @@ def health_index(request):
 @login_required
 def record_edit(request, member_id: int):
     member = get_object_or_404(
-        FamilyMember.objects.filter(family__in=_user_families(request.user)),
+        FamilyMember.objects.select_related("family", "user").filter(family__in=_user_families(request.user)),
         pk=member_id,
     )
     record, _ = HealthRecord.objects.get_or_create(member=member)
-    if not has_role(request.user, member.family, ("owner", "admin", "parent")) and member.user != request.user:
+    if not has_role(request.user, member.family, ("owner", "admin")) and member.user_id != request.user.id:
         raise PermissionDenied
     if request.method == "POST":
         for field in (
@@ -55,10 +55,10 @@ def record_edit(request, member_id: int):
 @login_required
 def medication_create(request, member_id: int):
     member = get_object_or_404(
-        FamilyMember.objects.filter(family__in=_user_families(request.user)),
+        FamilyMember.objects.select_related("family", "user").filter(family__in=_user_families(request.user)),
         pk=member_id,
     )
-    if not has_role(request.user, member.family, ("owner", "admin", "parent")) and member.user != request.user:
+    if not has_role(request.user, member.family, ("owner", "admin")) and member.user_id != request.user.id:
         raise PermissionDenied
     if request.method == "POST":
         Medication.objects.create(

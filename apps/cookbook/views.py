@@ -39,7 +39,7 @@ def recipe_create(request):
     family, families = _current_family(request)
     if not family:
         return redirect("families")
-    if not has_role(request.user, family, ("owner", "admin", "parent")):
+    if not has_role(request.user, family, ("owner", "admin")):
         raise PermissionDenied
     if request.method == "POST":
         recipe = Recipe.objects.create(
@@ -61,13 +61,10 @@ def recipe_create(request):
 
 def _save_ingredients(recipe, ingredients_raw):
     recipe.ingredients.all().delete()
-    for name, quantity, unit in _parse_product_lines(ingredients_raw):
-        Ingredient.objects.create(
-            recipe=recipe,
-            name=name,
-            quantity=quantity,
-            unit=unit,
-        )
+    Ingredient.objects.bulk_create([
+        Ingredient(recipe=recipe, name=name, quantity=quantity, unit=unit)
+        for name, quantity, unit in _parse_product_lines(ingredients_raw)
+    ])
 
 
 def _parse_product_lines(raw):
@@ -87,13 +84,10 @@ def _shopping_items_text(shopping_list):
 
 def _replace_shopping_items(shopping_list, raw):
     shopping_list.items.all().delete()
-    for name, quantity, unit in _parse_product_lines(raw):
-        ShoppingItem.objects.create(
-            shopping_list=shopping_list,
-            name=name,
-            quantity=quantity,
-            unit=unit,
-        )
+    ShoppingItem.objects.bulk_create([
+        ShoppingItem(shopping_list=shopping_list, name=name, quantity=quantity, unit=unit)
+        for name, quantity, unit in _parse_product_lines(raw)
+    ])
 
 
 @login_required
@@ -110,7 +104,7 @@ def recipe_update(request, recipe_id: int):
         Recipe.objects.filter(family__in=_user_families(request.user)), pk=recipe_id
     )
     family, families = _current_family(request)
-    if not has_role(request.user, recipe.family, ("owner", "admin", "parent")):
+    if not has_role(request.user, recipe.family, ("owner", "admin")):
         raise PermissionDenied
     if request.method == "POST":
         recipe.family = family or recipe.family
@@ -140,7 +134,7 @@ def recipe_delete(request, recipe_id: int):
     recipe = get_object_or_404(
         Recipe.objects.filter(family__in=_user_families(request.user)), pk=recipe_id
     )
-    if not has_role(request.user, recipe.family, ("owner", "admin", "parent")):
+    if not has_role(request.user, recipe.family, ("owner", "admin")):
         raise PermissionDenied
     recipe.delete()
     if request.headers.get("HX-Request"):
@@ -159,13 +153,10 @@ def recipe_to_shopping_list(request, recipe_id: int):
         name=f"Покупки: {recipe.title}",
         created_by=request.user,
     )
-    for ing in recipe.ingredients.all():
-        ShoppingItem.objects.create(
-            shopping_list=shopping_list,
-            name=ing.name,
-            quantity=ing.quantity,
-            unit=ing.unit,
-        )
+    ShoppingItem.objects.bulk_create([
+        ShoppingItem(shopping_list=shopping_list, name=ing.name, quantity=ing.quantity, unit=ing.unit)
+        for ing in recipe.ingredients.all()
+    ])
     task = Task.objects.create(
         family=recipe.family,
         title=f"Купить продукты: {recipe.title}",

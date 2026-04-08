@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -45,7 +46,7 @@ def poll_create(request):
     family, families = _current_family(request)
     if not family:
         return redirect("families")
-    if not has_role(request.user, family, ("owner", "admin", "parent")):
+    if not has_role(request.user, family, ("owner", "admin")):
         raise PermissionDenied
     if request.method == "POST":
         closes_raw = request.POST.get("closes_at", "").strip()
@@ -75,7 +76,7 @@ def poll_update(request, poll_id: int):
         Poll.objects.filter(family__in=families),
         pk=poll_id,
     )
-    if not has_role(request.user, poll.family, ("owner", "admin", "parent")):
+    if not has_role(request.user, poll.family, ("owner", "admin")):
         raise PermissionDenied
     if request.method == "POST":
         poll.family = family or poll.family
@@ -158,12 +159,14 @@ def poll_vote(request, poll_id: int):
     if not poll.allow_multiple:
         selected = selected[:1]
 
-    # Always wipe the user's previous votes for this poll so unchecking a
-    # previously selected option in a multi-choice poll actually removes it.
-    PollVote.objects.filter(user=request.user, choice__poll=poll).delete()
-
-    for choice_id in selected:
-        choice = poll.choices.filter(pk=choice_id).first()
-        if choice:
-            PollVote.objects.get_or_create(choice=choice, user=request.user)
+    valid_ids = set(
+        poll.choices.filter(pk__in=selected).values_list("pk", flat=True)
+    )
+    with transaction.atomic():
+        # Атомарно заменяем голоса: удаляем старые и сразу создаём новые.
+        PollVote.objects.filter(user=request.user, choice__poll=poll).delete()
+        PollVote.objects.bulk_create(
+            [PollVote(choice_id=cid, user=request.user) for cid in valid_ids],
+            ignore_conflicts=True,
+        )
     return redirect("polls:poll_detail", poll_id=poll.id)

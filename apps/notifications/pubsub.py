@@ -15,20 +15,27 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+_redis_client = None
+
 
 def _channel(user_id: int) -> str:
     return f"kinnet:notif:user:{user_id}"
 
 
 def _client():
+    global _redis_client
+    if _redis_client is not None:
+        return _redis_client
     if not settings.REDIS_URL:
         return None
     try:
         import redis  # type: ignore
     except ImportError:
-        logger.warning("redis-py not installed; SSE pub/sub disabled")
+        logger.warning("redis-py не установлен; SSE pub/sub отключён")
         return None
-    return redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    # from_url создаёт пул соединений — клиент переиспользуется между запросами.
+    _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    return _redis_client
 
 
 def publish(user_id: int, payload: dict) -> None:

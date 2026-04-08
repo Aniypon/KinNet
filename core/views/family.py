@@ -166,13 +166,23 @@ def family_detail(request, family_id):
 				if membership.role == "owner":
 					return redirect("family_detail", family_id=family.id)
 				if new_role == "owner":
-					owner_membership = get_membership(request.user, family)
-					if owner_membership and owner_membership.role == "owner" and membership.user != request.user:
-						membership.role = "owner"
-						membership.save(update_fields=["role"])
-						owner_membership.role = "member"
-						owner_membership.save(update_fields=["role"])
-						return redirect("family_detail", family_id=family.id)
+					with transaction.atomic():
+						# Блокируем обе записи, чтобы исключить гонку при смене владельца.
+						owner_membership = (
+							FamilyMembership.objects.select_for_update()
+							.filter(family=family, user=request.user, role="owner")
+							.first()
+						)
+						target_membership = (
+							FamilyMembership.objects.select_for_update()
+							.filter(family=family, id=membership_id)
+							.first()
+						)
+						if owner_membership and target_membership and target_membership.user != request.user:
+							target_membership.role = "owner"
+							target_membership.save(update_fields=["role"])
+							owner_membership.role = "member"
+							owner_membership.save(update_fields=["role"])
 					return redirect("family_detail", family_id=family.id)
 				role_form.save()
 				return redirect("family_detail", family_id=family.id)
@@ -240,14 +250,15 @@ def invitation_accept(request, token):
 	if invitation.username and invitation.username != user.username:
 		return redirect("home")
 	if request.method == "POST":
-		FamilyMembership.objects.get_or_create(
-			family=invitation.family,
-			user=user,
-			defaults={"role": "member", "display_order": invitation.family.memberships.count()},
-		)
-		invitation.status = "accepted"
-		invitation.accepted_at = timezone.now()
-		invitation.save(update_fields=["status", "accepted_at"])
+		with transaction.atomic():
+			FamilyMembership.objects.get_or_create(
+				family=invitation.family,
+				user=user,
+				defaults={"role": "member", "display_order": invitation.family.memberships.count()},
+			)
+			invitation.status = "accepted"
+			invitation.accepted_at = timezone.now()
+			invitation.save(update_fields=["status", "accepted_at"])
 		return redirect("families")
 
 	return render(

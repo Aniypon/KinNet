@@ -112,10 +112,15 @@ def list_members(request, family_id: int):
     return list(FamilyMember.objects.filter(family=family))
 
 
+_TASK_STATUSES = {"todo", "in_progress", "done"}
+
+
 @api.get("/tasks", response=List[TaskOut])
 def list_tasks(request, status: Optional[str] = None):
-    qs = Task.objects.filter(family__in=_user_families(request.user))
+    qs = Task.objects.select_related("assignee").filter(family__in=_user_families(request.user))
     if status:
+        if status not in _TASK_STATUSES:
+            return []
         qs = qs.filter(status=status)
     return list(qs)
 
@@ -147,7 +152,7 @@ def mark_task_done(request, task_id: int):
 
 @api.get("/events", response=List[EventOut])
 def list_events(request):
-    return list(Event.objects.filter(family__in=_user_families(request.user)))
+    return list(Event.objects.select_related("member").filter(family__in=_user_families(request.user)))
 
 
 @api.get("/goals", response=List[GoalOut])
@@ -213,6 +218,7 @@ def push_unsubscribe(request, endpoint: str):
 
 @api.get("/notifications", response=List[NotificationOut])
 def list_notifications(request, unread: bool = False, limit: int = 20):
+    limit = min(max(limit, 1), 100)
     qs = Notification.objects.filter(user=request.user)
     if unread:
         qs = qs.filter(is_read=False)
