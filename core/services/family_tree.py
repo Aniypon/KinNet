@@ -131,6 +131,17 @@ def restore_tree_snapshot(family, snapshot):
 	allowed_ids = set(members)
 	updates = []
 
+	def clean_id(value):
+		if value in ("", None):
+			return None
+		try:
+			value = int(value)
+		except (TypeError, ValueError):
+			raise FamilyTreeValidationError("В снимке есть некорректная связь.", code="bad_snapshot")
+		if value not in allowed_ids:
+			raise FamilyTreeValidationError("В снимке есть связь с другой семьёй.", code="cross_family_snapshot")
+		return value
+
 	for item in snapshot:
 		try:
 			member_id = int(item.get("id"))
@@ -138,17 +149,6 @@ def restore_tree_snapshot(family, snapshot):
 			raise FamilyTreeValidationError("В снимке есть неизвестный участник.", code="bad_snapshot")
 		if member_id not in allowed_ids:
 			raise FamilyTreeValidationError("В снимке есть участник из другой семьи.", code="cross_family_snapshot")
-
-		def clean_id(value):
-			if value in ("", None):
-				return None
-			try:
-				value = int(value)
-			except (TypeError, ValueError):
-				raise FamilyTreeValidationError("В снимке есть некорректная связь.", code="bad_snapshot")
-			if value not in allowed_ids:
-				raise FamilyTreeValidationError("В снимке есть связь с другой семьёй.", code="cross_family_snapshot")
-			return value
 
 		updates.append(
 			(
@@ -295,12 +295,11 @@ def apply_relation_action(family: Family, action: str, payload: dict):
 		if member.spouse_id:
 			spouse = member.spouse
 			member.spouse = None
-			member.save(update_fields=["parent1", "parent2", "spouse"])
 			if spouse and spouse.family_id == family.id:
 				spouse.spouse = None
 				spouse.save(update_fields=["spouse"])
 		member.in_tree = False
-		member.save(update_fields=["in_tree"])
+		member.save(update_fields=["parent1", "parent2", "spouse", "in_tree"])
 		return member
 
 	if action == "unpair":
@@ -328,7 +327,9 @@ def apply_relation_action(family: Family, action: str, payload: dict):
 def validate_family_tree(family):
 	issues = []
 	seen_names = {}
-	for member in family.family_members.all():
+	all_members = {m.id: m for m in family.family_members.all()}
+
+	for member in all_members.values():
 		name_key = (
 			member.first_name.strip().casefold(),
 			member.last_name.strip().casefold(),
@@ -342,8 +343,10 @@ def validate_family_tree(family):
 		if member.spouse_id:
 			if member.spouse_id == member.id:
 				issues.append(TreeIssue("self_pair", f"{member} указан супругом самому себе.", member.id))
-			elif not member.spouse or member.spouse.spouse_id != member.id:
-				issues.append(TreeIssue("one_sided_spouse", f"Связь пары у {member} односторонняя.", member.id))
+			else:
+				spouse = all_members.get(member.spouse_id)
+				if not spouse or spouse.spouse_id != member.id:
+					issues.append(TreeIssue("one_sided_spouse", f"Связь пары у {member} односторонняя.", member.id))
 
 		parent_ids = [pid for pid in [member.parent1_id, member.parent2_id] if pid]
 		if len(parent_ids) != len(set(parent_ids)):
@@ -351,7 +354,7 @@ def validate_family_tree(family):
 		if member.id in parent_ids:
 			issues.append(TreeIssue("self_parent", f"{member} указан своим родителем.", member.id))
 		for parent_id in parent_ids:
-			parent = FamilyMember.objects.filter(id=parent_id, family=family).first()
+			parent = all_members.get(parent_id)
 			if parent and _would_create_parent_cycle(member, parent):
 				issues.append(TreeIssue("parent_cycle", f"В ветке {member} найден цикл родителей.", member.id))
 

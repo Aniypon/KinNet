@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from typing import Iterator
 
 from django.conf import settings
@@ -16,6 +17,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 _redis_client = None
+_redis_lock = threading.Lock()
 
 
 def _channel(user_id: int) -> str:
@@ -26,15 +28,18 @@ def _client():
     global _redis_client
     if _redis_client is not None:
         return _redis_client
-    if not settings.REDIS_URL:
-        return None
-    try:
-        import redis  # type: ignore
-    except ImportError:
-        logger.warning("redis-py не установлен; SSE pub/sub отключён")
-        return None
-    # from_url создаёт пул соединений — клиент переиспользуется между запросами.
-    _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+    with _redis_lock:
+        if _redis_client is not None:
+            return _redis_client
+        if not settings.REDIS_URL:
+            return None
+        try:
+            import redis  # type: ignore
+        except ImportError:
+            logger.warning("redis-py не установлен; SSE pub/sub отключён")
+            return None
+        # from_url создаёт пул соединений — клиент переиспользуется между запросами.
+        _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
 
 

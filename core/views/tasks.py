@@ -70,11 +70,9 @@ def tasks(request):
 
 @login_required
 def task_detail(request, task_id):
-	task = get_object_or_404(Task, id=task_id)
-	family = task.family
 	families = get_user_families(request.user)
-	if not families.filter(id=family.id).exists():
-		return redirect("tasks")
+	task = get_object_or_404(Task, id=task_id, family__in=families)
+	family = task.family
 	can_manage = has_role(request.user, family, {"owner", "admin"})
 
 	checklist_form = TaskChecklistItemForm(prefix="check")

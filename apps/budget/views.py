@@ -175,8 +175,9 @@ def expense_list(request):
     if end is not None:
         period_qs = period_qs.filter(spent_on__lt=end)
 
-    period_total = period_qs.aggregate(t=Sum("amount"))["t"] or Decimal("0")
-    period_count = period_qs.count()
+    agg = period_qs.aggregate(t=Sum("amount"), n=Count("id"))
+    period_total = agg["t"] or Decimal("0")
+    period_count = agg["n"] or 0
     period_avg = (period_total / period_count) if period_count else Decimal("0")
 
     # delta vs previous comparable period

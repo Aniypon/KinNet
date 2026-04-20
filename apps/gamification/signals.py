@@ -23,6 +23,10 @@ PLANNER_THRESHOLD = 10
 def task_completed(sender, instance, created, **kwargs):
     if created or instance.status != "done" or not instance.assignee_id:
         return
+    # Пропускаем сохранения, которые не меняли статус
+    update_fields = kwargs.get("update_fields")
+    if update_fields is not None and "status" not in update_fields:
+        return
     done_count = Task.objects.filter(
         assignee_id=instance.assignee_id, status="done"
     ).count()

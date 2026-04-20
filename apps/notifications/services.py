@@ -63,7 +63,7 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
 
     # Publish SSE + collect subscriptions in a single query
     subs_by_user: dict[int, list] = {}
-    for sub in PushSubscription.objects.filter(user_id__in=user_ids).select_related():
+    for sub in PushSubscription.objects.filter(user_id__in=user_ids):
         subs_by_user.setdefault(sub.user_id, []).append(sub)
 
     for note, user in zip(notes, users):
