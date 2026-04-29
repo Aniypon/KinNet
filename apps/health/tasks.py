@@ -34,9 +34,11 @@ def send_medication_reminders() -> int:
                 target = time(int(hh), int(mm))
             except (ValueError, TypeError):
                 continue
-            delta_minutes = abs(
+            raw_delta = abs(
                 (now.hour * 60 + now.minute) - (target.hour * 60 + target.minute)
             )
+            # Wrap around midnight: 23:50 vs 00:05 should be 15 min, not 1425.
+            delta_minutes = min(raw_delta, 1440 - raw_delta)
             if delta_minutes > 15:
                 continue
             text = f"💊 Напоминание: {med.member} — {med.name} ({med.dosage}) в {raw}"

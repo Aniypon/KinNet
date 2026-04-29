@@ -1189,7 +1189,9 @@ def message_delete(request, message_id):
 def ui_set_pref(request):
 	"""Toggle elder mode / theme stored in the session.
 
-	HTMX-friendly: returns 204 so callers can simply reload the page.
+	Plain ``<form>`` submissions need to navigate back so the page re-renders
+	with the new preferences applied; HTMX callers can still swap fragments by
+	following the same redirect.
 	Accepts POST with ``elder`` (1/0) and/or ``theme`` (light/dark/elder).
 	"""
 	if request.method != "POST":
@@ -1202,7 +1204,7 @@ def ui_set_pref(request):
 			theme = "light"
 		request.session["theme"] = theme
 	request.session.modified = True
-	return HttpResponse(status=204)
+	return redirect(request.META.get("HTTP_REFERER", "/"))
 
 
 @login_required

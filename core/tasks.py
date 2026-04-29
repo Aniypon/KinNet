@@ -60,7 +60,10 @@ def send_daily_reminders() -> int:
         )
         for event in events_qs:
             occurrence = get_next_event_date(event, today)
-            if occurrence and (occurrence - today).days <= max(event.remind_days_before, 0):
+            if not occurrence:
+                continue
+            delta_days = (occurrence - today).days
+            if 0 <= delta_days <= max(event.remind_days_before, 0):
                 upcoming_events.append((occurrence, event))
 
         due_tasks = (
@@ -88,8 +91,14 @@ def send_daily_reminders() -> int:
 
 @shared_task(name="core.tasks.send_weekly_digest")
 def send_weekly_digest() -> int:
-    """Compose and deliver a weekly digest per user."""
+    """Compose and deliver a weekly digest per user.
+
+    Uses ``get_next_event_date`` so that birthdays (whose ``Event.date`` stores
+    the original birth year) are resolved to their next yearly occurrence and
+    not silently dropped by a raw ``date__range`` filter.
+    """
     from core.models import Event, Task, TelegramProfile
+    from core.utils import get_next_event_date
 
     today = timezone.localdate()
     end = today + timedelta(days=7)
@@ -97,24 +106,33 @@ def send_weekly_digest() -> int:
     for profile in TelegramProfile.objects.filter(is_confirmed=True).select_related("user"):
         user = profile.user
         family_filter = Q(family__memberships__user=user) | Q(family__created_by=user)
-        events = (
-            Event.objects.filter(family_filter, date__range=(today, end))
+
+        all_events = (
+            Event.objects.filter(family_filter)
             .select_related("family")
-            .distinct()[:8]
+            .distinct()
         )
+        upcoming_events: list[tuple] = []
+        for ev in all_events:
+            occurrence = get_next_event_date(ev, today)
+            if occurrence and today <= occurrence <= end:
+                upcoming_events.append((occurrence, ev))
+        upcoming_events.sort(key=lambda pair: pair[0])
+        upcoming_events = upcoming_events[:8]
+
         tasks = (
             Task.objects.filter(family_filter)
             .exclude(status="done")
             .filter(due_date__range=(today, end))
             .distinct()[:8]
         )
-        if not events and not tasks:
+        if not upcoming_events and not tasks:
             continue
         lines = [f"<b>Недельный дайджест ({today:%d.%m} – {end:%d.%m})</b>"]
-        if events:
+        if upcoming_events:
             lines.append("\n<b>События:</b>")
-            for ev in events:
-                lines.append(f"• {ev.date:%d.%m} {ev.title}")
+            for occurrence, ev in upcoming_events:
+                lines.append(f"• {occurrence:%d.%m} {ev.title}")
         if tasks:
             lines.append("\n<b>Задачи:</b>")
             for task in tasks:
