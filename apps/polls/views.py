@@ -81,7 +81,10 @@ def poll_vote(request, poll_id: int):
     selected = request.POST.getlist("choice")
     if not poll.allow_multiple:
         selected = selected[:1]
-        PollVote.objects.filter(user=request.user, choice__poll=poll).delete()
+
+    # Always wipe the user's previous votes for this poll so unchecking a
+    # previously selected option in a multi-choice poll actually removes it.
+    PollVote.objects.filter(user=request.user, choice__poll=poll).delete()
 
     for choice_id in selected:
         choice = poll.choices.filter(pk=choice_id).first()

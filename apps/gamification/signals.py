@@ -16,7 +16,15 @@ def family_created(sender, instance, created, **kwargs):
         award(instance.created_by, "hearth_keeper")
 
 
+PLANNER_THRESHOLD = 10
+
+
 @receiver(post_save, sender=Task)
 def task_completed(sender, instance, created, **kwargs):
-    if not created and instance.status == "done" and instance.assignee_id:
+    if created or instance.status != "done" or not instance.assignee_id:
+        return
+    done_count = Task.objects.filter(
+        assignee_id=instance.assignee_id, status="done"
+    ).count()
+    if done_count >= PLANNER_THRESHOLD:
         award(instance.assignee, "planner")
