@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Сообщения{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Выбор семьи</h2>
+    {% if families %}
+      <form method="get">
+        <label for="family">Семья</label>
+        <select id="family" name="family" onchange="this.form.submit()">
+          {% for item in families %}
+            <option value="{{ item.id }}" {% if family and family.id == item.id %}selected{% endif %}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <div class="split" style="margin-top: 16px;">
+    <section class="card">
+      <h2>Семейный чат</h2>
+      {% if messages %}
+        <ul>
+          {% for item in messages %}
+            <li>
+              <strong>{{ item.sender.get_full_name|default:item.sender.username }}</strong>
+              <span class="meta">(@{{ item.sender.username }})</span>
+              <div class="meta">{{ item.created_at|date_ru }}</div>
+              <div>{{ item.text }}</div>
+              {% if item.sender == request.user or can_manage %}
+                <div class="meta">
+                  <a href="/messages/{{ item.id }}/delete/">Удалить</a>
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Пока нет сообщений.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Новое сообщение</h2>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Отправить</button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

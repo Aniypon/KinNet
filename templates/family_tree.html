@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Дерево родственников{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Дерево семьи: {{ family.name }}</h2>
+    <p class="meta">Визуальная схема участников и родственников.</p>
+    {% if can_manage %}
+      <a class="btn" href="/family-tree/edit/?family={{ family.id }}">Редактировать связи</a>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <div id="tree-container" class="tree"></div>
+  </section>
+
+  <style>
+    .tree {
+      overflow-x: auto;
+      padding: 10px;
+    }
+    .tree ul {
+      padding-top: 20px;
+      position: relative;
+      padding-left: 0;
+      display: flex;
+      justify-content: center;
+    }
+    .tree li {
+      list-style-type: none;
+      text-align: center;
+      margin: 0 20px;
+      position: relative;
+      padding: 20px 5px 0 5px;
+    }
+    .tree li::before,
+    .tree li::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 50%;
+      border-top: 2px solid #d1d5db;
+      width: 50%;
+      height: 20px;
+    }
+    .tree li::after {
+      right: auto;
+      left: 50%;
+      border-left: 2px solid #d1d5db;
+      width: 50%;
+    }
+    .tree li:only-child::after,
+    .tree li:only-child::before {
+      display: none;
+    }
+    .tree li:only-child {
+      padding-top: 0;
+    }
+    .tree li:first-child::before,
+    .tree li:last-child::after {
+      border: 0 none;
+    }
+    .tree li:last-child::before {
+      border-right: 2px solid #d1d5db;
+      border-radius: 0 5px 0 0;
+    }
+    .tree li:first-child::after {
+      border-radius: 5px 0 0 0;
+    }
+    .tree ul ul::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      border-left: 2px solid #d1d5db;
+      width: 0;
+      height: 20px;
+    }
+    .node {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: #f3f4f6;
+      font-weight: 600;
+      min-width: 140px;
+    }
+    .node.root {
+      background: #7c3aed;
+      color: white;
+    }
+    .node.group {
+      background: #ede9fe;
+      color: #5b21b6;
+    }
+    .node.person {
+      background: #7c3aed;
+      color: white;
+    }
+    .node.pair {
+      background: #111827;
+      color: white;
+    }
+    .node.empty {
+      background: #e5e7eb;
+      color: #6b7280;
+    }
+    .tree-item.dragging {
+      opacity: 0.4;
+    }
+    .tree-item.drag-over {
+      outline: 2px dashed #7c3aed;
+      outline-offset: 6px;
+      border-radius: 12px;
+    }
+  </style>
+  {{ tree_data|json_script:"tree-data" }}
+  {{ can_manage|json_script:"can-manage" }}
+  <script>
+    const CAN_MANAGE = JSON.parse(document.getElementById("can-manage").textContent);
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i += 1) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === `${name}=`) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function saveOrder() {
+      const peopleList = document.querySelectorAll("[data-type='person']");
+      const people = Array.from(peopleList).map((item) => parseInt(item.dataset.id, 10));
+
+      await fetch("/family-tree/order/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: JSON.stringify({
+          family: Number("{{ family.id }}"),
+          people,
+        }),
+      });
+    }
+
+    function buildTree() {
+      const raw = JSON.parse(document.getElementById("tree-data").textContent);
+      const nodes = new Map();
+      const children = new Map();
+      const pairNodes = new Map();
+
+      raw.forEach((item) => {
+        nodes.set(item.id, item);
+      });
+
+      raw.forEach((item) => {
+        if (item.spouse) {
+          const sorted = [item.id, item.spouse].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+        }
+      });
+
+      raw.forEach((item) => {
+        const p1 = item.parent1;
+        const p2 = item.parent2;
+        if (p1 && p2) {
+          const sorted = [p1, p2].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+          const pairId = pairNodes.get(key).id;
+          if (!children.has(pairId)) children.set(pairId, []);
+          children.get(pairId).push(item.id);
+        } else if (p1 || p2) {
+          const parent = p1 || p2;
+          if (!children.has(parent)) children.set(parent, []);
+          children.get(parent).push(item.id);
+        }
+      });
+
+      const roots = raw
+        .filter((item) => !item.parent1 && !item.parent2)
+        .filter((item) => !item.spouse || item.id < item.spouse)
+        .map((item) => item.id);
+
+      const container = document.getElementById("tree-container");
+      container.innerHTML = "";
+
+      function createNode(label, type) {
+        const div = document.createElement("div");
+        div.className = `node ${type}`;
+        div.textContent = label;
+        return div;
+      }
+
+      function createLiForPerson(id) {
+        const person = nodes.get(id);
+        const spouseId = person.spouse;
+        if (spouseId && person.id > spouseId) {
+          return null;
+        }
+
+        const li = document.createElement("li");
+        li.className = "tree-item";
+        if (CAN_MANAGE) {
+          li.setAttribute("draggable", "true");
+          li.dataset.type = "person";
+          li.dataset.id = id;
+        }
+
+        if (spouseId) {
+          const spouse = nodes.get(spouseId);
+          const pairLabel = `${person.label} + ${spouse.label}`;
+          li.appendChild(createNode(pairLabel, "pair"));
+          const pairKey = [person.id, spouseId].sort((a, b) => a - b).join("-");
+          const pairId = `pair-${pairKey}`;
+          const pairChildren = children.get(pairId) || [];
+          if (pairChildren.length) {
+            const ul = document.createElement("ul");
+            pairChildren.forEach((childId) => {
+              const childLi = createLiForPerson(childId);
+              if (childLi) ul.appendChild(childLi);
+            });
+            li.appendChild(ul);
+          }
+          return li;
+        }
+
+        const label = person.relation ? `${person.label} (${person.relation})` : person.label;
+        li.appendChild(createNode(label, "person"));
+
+        const childIds = children.get(id) || [];
+        if (childIds.length) {
+          const ul = document.createElement("ul");
+          childIds.forEach((childId) => {
+            const childLi = createLiForPerson(childId);
+            if (childLi) ul.appendChild(childLi);
+          });
+          li.appendChild(ul);
+        }
+        return li;
+      }
+
+      const rootUl = document.createElement("ul");
+      const rootLi = document.createElement("li");
+      rootLi.appendChild(createNode("{{ family.name }}", "root"));
+      const rootChildrenUl = document.createElement("ul");
+      roots.forEach((rootId) => {
+        const li = createLiForPerson(rootId);
+        if (li) rootChildrenUl.appendChild(li);
+      });
+      rootLi.appendChild(rootChildrenUl);
+      rootUl.appendChild(rootLi);
+      container.appendChild(rootUl);
+
+      if (CAN_MANAGE) {
+        enableDragAndDrop();
+      }
+    }
+
+    function enableDragAndDrop() {
+      const items = document.querySelectorAll(".tree-item[data-type='person']");
+      let dragged = null;
+
+      items.forEach((item) => {
+        item.addEventListener("dragstart", (event) => {
+          dragged = item;
+          item.classList.add("dragging");
+          event.dataTransfer.effectAllowed = "move";
+        });
+
+        item.addEventListener("dragend", () => {
+          item.classList.remove("dragging");
+          items.forEach((el) => el.classList.remove("drag-over"));
+          dragged = null;
+        });
+
+        item.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          if (!dragged || dragged === item) return;
+          item.classList.add("drag-over");
+        });
+
+        item.addEventListener("dragleave", () => {
+          item.classList.remove("drag-over");
+        });
+
+        item.addEventListener("drop", (event) => {
+          event.preventDefault();
+          if (!dragged || dragged === item) return;
+          item.classList.remove("drag-over");
+          const parent = item.parentElement;
+          parent.insertBefore(dragged, item.nextSibling);
+          saveOrder();
+        });
+      });
+    }
+
+    buildTree();
+  </script>
+{% endblock %}

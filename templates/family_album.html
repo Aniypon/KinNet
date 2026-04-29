@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Семейный альбом{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Выбор семьи</h2>
+    {% if families %}
+      <form method="get">
+        <label for="family">Семья</label>
+        <select id="family" name="family" onchange="this.form.submit()">
+          {% for item in families %}
+            <option value="{{ item.id }}" {% if family and family.id == item.id %}selected{% endif %}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h2>Семейный альбом</h2>
+    {% if photos %}
+      <div class="grid">
+        {% for photo in photos %}
+          <div class="card">
+            <img src="{{ photo.image.url }}" alt="Фото" style="width: 100%; border-radius: 12px;" />
+            {% if photo.caption %}<div class="meta">{{ photo.caption }}</div>{% endif %}
+            {% if photo.uploaded_by %}
+              <div class="meta">Загрузил: {{ photo.uploaded_by.get_full_name|default:photo.uploaded_by.username }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="meta">Пока нет фотографий.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h2>Добавить фото</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button class="btn" type="submit">Загрузить</button>
+    </form>
+  </section>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Данные участника{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 720px; margin: 0 auto;">
+    <h2>{{ profile_user.get_full_name|default:profile_user.username }}</h2>
+    <p class="meta">@{{ profile_user.username }}</p>
+
+    {% if profile and profile.avatar %}
+      <p>
+        <img src="{{ profile.avatar.url }}" alt="Аватар" style="width: 96px; height: 96px; object-fit: cover; border-radius: 50%;" />
+      </p>
+    {% endif %}
+
+    <div class="meta">Имя: {{ profile_user.first_name|default:"—" }}</div>
+    <div class="meta">Фамилия: {{ profile_user.last_name|default:"—" }}</div>
+    <div class="meta">Email: {{ profile_user.email|default:"—" }}</div>
+
+    {% if profile %}
+      <div class="meta">Отчество: {{ profile.middle_name|default:"—" }}</div>
+      <div class="meta">Родство: {{ profile.relation|default:"—" }}</div>
+      <div class="meta">Дата рождения: {% if profile.birth_date %}{{ profile.birth_date|date_ru }}{% else %}—{% endif %}</div>
+      {% if profile.birth_date %}
+        <div class="meta">Возраст: {{ profile.birth_date|age_years }}</div>
+        <div class="meta">Ближайший день рождения: {{ profile.birth_date|next_birthday|date_ru }}</div>
+      {% endif %}
+      <div class="meta">Телефон: {{ profile.phone|default:"—" }}</div>
+      <div class="meta">Адрес (дом): {{ profile.address_home|default:"—" }}</div>
+      <div class="meta">Адрес (дача): {{ profile.address_country_house|default:"—" }}</div>
+      <div class="meta">Соцсети: {{ profile.socials|default:"—" }}</div>
+      <div class="meta">Место работы: {{ profile.workplace|default:"—" }}</div>
+      <div class="meta">Заметки: {{ profile.notes|default:"—" }}</div>
+      <div class="meta">Родитель 1: {{ profile.parent1|default:"—" }}</div>
+      <div class="meta">Родитель 2: {{ profile.parent2|default:"—" }}</div>
+    {% else %}
+      <p class="meta">Профиль ещё не заполнен.</p>
+    {% endif %}
+
+    <div class="meta" style="margin-top: 12px;">
+      <a href="/members/">Назад к списку</a>
+    </div>
+  </section>
+{% endblock %}

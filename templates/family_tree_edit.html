@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование связей{% endblock %}
+
+{% block content %}
+  <section class="card" id="family-tree-meta" data-family-id="{{ family.id }}">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <h2 style="margin: 0;">Редактирование связей — {{ family.name }}</h2>
+      <button class="btn secondary" type="button" id="clear-tree">Очистить дерево</button>
+      <button class="btn secondary" type="button" id="show-all">Показать всех</button>
+    </div>
+    <p class="meta">
+      Перетаскивайте участников из списка снизу на дерево. Если перетащить человека на
+      другого — они становятся парой. Перетащите человека на пару, чтобы добавить ребёнка.
+    </p>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <div id="tree-container" class="tree"></div>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h3>Участники семьи (не в дереве)</h3>
+    <div class="palette" id="palette">
+      {% for person in available_members %}
+        <div class="brick" draggable="true" data-id="{{ person.id }}">
+          {{ person }}
+        </div>
+      {% empty %}
+        <div class="meta">Все участники уже добавлены.</div>
+      {% endfor %}
+    </div>
+    <div class="meta" style="margin-top: 12px;">
+      Чтобы сделать новый уровень, перетащите участника в область «Новый уровень».
+    </div>
+    <div id="drop-root" class="drop-zone">Новый уровень</div>
+  </section>
+
+  {{ tree_data|json_script:"tree-data" }}
+  <script>
+    const data = JSON.parse(document.getElementById("tree-data").textContent);
+    const container = document.getElementById("tree-container");
+    const dropRoot = document.getElementById("drop-root");
+    const palette = document.getElementById("palette");
+    const familyId = Number(document.getElementById("family-tree-meta").dataset.familyId);
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i += 1) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === `${name}=`) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    async function postRelation(payload) {
+      const response = await fetch("/family-tree/relations/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: JSON.stringify({ family: familyId, ...payload }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert("Невозможно создать пару: у одного из участников уже есть супруг.");
+        return;
+      }
+      if (result.tree_data) {
+        data.length = 0;
+        result.tree_data.forEach((item) => data.push(item));
+        renderPalette();
+        buildTree();
+      }
+    }
+
+    function renderPalette() {
+      const available = data.filter((item) => !item.in_tree);
+      palette.innerHTML = "";
+      if (!available.length) {
+        const empty = document.createElement("div");
+        empty.className = "meta";
+        empty.textContent = "Все участники уже добавлены.";
+        palette.appendChild(empty);
+        return;
+      }
+      available.forEach((item) => {
+        const brick = document.createElement("div");
+        brick.className = "brick";
+        brick.draggable = true;
+        brick.dataset.id = item.id;
+        brick.textContent = item.label;
+        palette.appendChild(brick);
+      });
+    }
+
+    function buildTree() {
+      const nodes = new Map();
+      const children = new Map();
+      const pairNodes = new Map();
+
+      const treeMembers = data.filter((item) => item.in_tree);
+
+      treeMembers.forEach((item) => nodes.set(item.id, item));
+
+      treeMembers.forEach((item) => {
+        if (item.spouse) {
+          const sorted = [item.id, item.spouse].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+        }
+      });
+
+      treeMembers.forEach((item) => {
+        const p1 = item.parent1;
+        const p2 = item.parent2;
+        if (p1 && p2) {
+          const sorted = [p1, p2].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+          const pairId = pairNodes.get(key).id;
+          if (!children.has(pairId)) children.set(pairId, []);
+          children.get(pairId).push(item.id);
+        } else if (p1 || p2) {
+          const parent = p1 || p2;
+          if (!children.has(parent)) children.set(parent, []);
+          children.get(parent).push(item.id);
+        }
+      });
+
+      const roots = treeMembers
+        .filter((item) => !item.parent1 && !item.parent2)
+        .filter((item) => !item.spouse || item.id < item.spouse)
+        .map((item) => item.id);
+
+      function createNode(label, type, extra = {}) {
+        const div = document.createElement("div");
+        div.className = `node ${type}`;
+        div.textContent = label;
+        if (extra.type) div.dataset.type = extra.type;
+        if (extra.id) div.dataset.id = extra.id;
+        if (extra.parent1) div.dataset.parent1 = extra.parent1;
+        if (extra.parent2) div.dataset.parent2 = extra.parent2;
+        return div;
+      }
+
+      function createLiForPerson(id) {
+        const person = nodes.get(id);
+        const spouseId = person.spouse;
+        if (spouseId && person.id > spouseId) {
+          return null;
+        }
+
+        const li = document.createElement("li");
+        li.className = "tree-item";
+
+        if (spouseId) {
+          const spouse = nodes.get(spouseId);
+          const pairLabel = `${person.label} + ${spouse.label}`;
+          const pairKey = [person.id, spouseId].sort((a, b) => a - b).join("-");
+          const pairId = `pair-${pairKey}`;
+          const pairNode = createNode(pairLabel, "pair", {
+            type: "pair",
+            parent1: person.id,
+            parent2: spouseId,
+            id: pairId,
+          });
+          li.appendChild(pairNode);
+
+          const unpairButton = document.createElement("button");
+          unpairButton.className = "btn secondary";
+          unpairButton.type = "button";
+          unpairButton.textContent = "Разъединить пару";
+          unpairButton.addEventListener("click", () => {
+            postRelation({ action: "unpair", member: person.id });
+          });
+          const removeButton = document.createElement("button");
+          removeButton.className = "btn secondary";
+          removeButton.type = "button";
+          removeButton.textContent = "Удалить из дерева";
+          removeButton.addEventListener("click", () => {
+            postRelation({ action: "remove_from_tree", member: person.id });
+          });
+          const buttonWrap = document.createElement("div");
+          buttonWrap.style.marginTop = "6px";
+          buttonWrap.style.display = "flex";
+          buttonWrap.style.gap = "6px";
+          buttonWrap.appendChild(unpairButton);
+          buttonWrap.appendChild(removeButton);
+          li.appendChild(buttonWrap);
+
+          const childZone = document.createElement("div");
+          childZone.className = "child-zone";
+          childZone.textContent = "Добавить ребёнка";
+          childZone.dataset.parent1 = person.id;
+          childZone.dataset.parent2 = spouseId;
+          li.appendChild(childZone);
+
+          const pairChildren = children.get(pairId) || [];
+          if (pairChildren.length) {
+            const ul = document.createElement("ul");
+            pairChildren.forEach((childId) => {
+              const childLi = createLiForPerson(childId);
+              if (childLi) ul.appendChild(childLi);
+            });
+            li.appendChild(ul);
+          }
+          return li;
+        }
+
+        const label = person.relation ? `${person.label} (${person.relation})` : person.label;
+        const node = createNode(label, "person", { type: "person", id: person.id });
+        li.appendChild(node);
+
+        const removeButton = document.createElement("button");
+        removeButton.className = "btn secondary";
+        removeButton.type = "button";
+        removeButton.textContent = "Удалить из дерева";
+        removeButton.addEventListener("click", () => {
+          postRelation({ action: "remove_from_tree", member: person.id });
+        });
+        const buttonWrap = document.createElement("div");
+        buttonWrap.style.marginTop = "6px";
+        buttonWrap.appendChild(removeButton);
+        li.appendChild(buttonWrap);
+
+        const childZone = document.createElement("div");
+        childZone.className = "child-zone";
+        childZone.textContent = "Добавить ребёнка";
+        childZone.dataset.parent = person.id;
+        li.appendChild(childZone);
+
+        const childIds = children.get(id) || [];
+        if (childIds.length) {
+          const ul = document.createElement("ul");
+          childIds.forEach((childId) => {
+            const childLi = createLiForPerson(childId);
+            if (childLi) ul.appendChild(childLi);
+          });
+          li.appendChild(ul);
+        }
+        return li;
+      }
+
+      const rootUl = document.createElement("ul");
+      const rootLi = document.createElement("li");
+      rootLi.appendChild(createNode("{{ family.name }}", "root"));
+      const rootChildrenUl = document.createElement("ul");
+      roots.forEach((rootId) => {
+        const li = createLiForPerson(rootId);
+        if (li) rootChildrenUl.appendChild(li);
+      });
+      rootLi.appendChild(rootChildrenUl);
+      rootUl.appendChild(rootLi);
+      container.innerHTML = "";
+      container.appendChild(rootUl);
+
+      bindDropTargets();
+    }
+
+    function bindDropTargets() {
+      const bricks = document.querySelectorAll(".brick");
+      bricks.forEach((brick) => {
+        brick.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/plain", brick.dataset.id);
+          document.querySelectorAll(".node.person").forEach((node) => node.classList.add("drop-highlight"));
+          document.querySelectorAll(".child-zone").forEach((zone) => zone.classList.add("drop-highlight"));
+          dropRoot.classList.add("drop-highlight");
+        });
+        brick.addEventListener("dragend", () => {
+          document.querySelectorAll(".node.person").forEach((node) => node.classList.remove("drop-highlight"));
+          document.querySelectorAll(".child-zone").forEach((zone) => zone.classList.remove("drop-highlight"));
+          dropRoot.classList.remove("drop-highlight");
+        });
+      });
+
+      const personNodes = document.querySelectorAll(".node.person");
+      const childZones = document.querySelectorAll(".child-zone");
+
+      personNodes.forEach((node) => {
+          node.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            node.classList.add("drop-highlight");
+          });
+          node.addEventListener("dragleave", () => {
+            node.classList.remove("drop-highlight");
+          });
+        node.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+          const targetId = parseInt(node.dataset.id, 10);
+          if (!draggedId || draggedId === targetId) return;
+            node.classList.remove("drop-highlight");
+          postRelation({ action: "pair", memberA: draggedId, memberB: targetId });
+        });
+      });
+
+      childZones.forEach((zone) => {
+          zone.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            zone.classList.add("drop-highlight");
+          });
+          zone.addEventListener("dragleave", () => {
+            zone.classList.remove("drop-highlight");
+          });
+        zone.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+          if (!draggedId) return;
+          const parent1 = zone.dataset.parent1 ? parseInt(zone.dataset.parent1, 10) : null;
+          const parent2 = zone.dataset.parent2 ? parseInt(zone.dataset.parent2, 10) : null;
+            zone.classList.remove("drop-highlight");
+          if (parent1 && parent2) {
+            postRelation({ action: "add_child", child: draggedId, parent1, parent2 });
+          } else if (zone.dataset.parent) {
+            postRelation({ action: "set_parent", child: draggedId, parent: parseInt(zone.dataset.parent, 10) });
+          }
+        });
+      });
+
+        dropRoot.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          dropRoot.classList.add("drop-highlight");
+        });
+        dropRoot.addEventListener("dragleave", () => {
+          dropRoot.classList.remove("drop-highlight");
+        });
+      dropRoot.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+        if (!draggedId) return;
+          dropRoot.classList.remove("drop-highlight");
+        postRelation({ action: "clear_parents", member: draggedId });
+      });
+    }
+
+    renderPalette();
+    buildTree();
+
+    document.getElementById("clear-tree").addEventListener("click", () => {
+      postRelation({ action: "clear_tree" });
+    });
+    document.getElementById("show-all").addEventListener("click", () => {
+      postRelation({ action: "show_all" });
+    });
+  </script>
+
+  <style>
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .brick {
+      padding: 8px 12px;
+      background: #ede9fe;
+      color: #5b21b6;
+      border-radius: 10px;
+      cursor: grab;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .drop-zone {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 2px dashed #a78bfa;
+      border-radius: 12px;
+      text-align: center;
+      color: #5b21b6;
+    }
+    .drop-highlight {
+      outline: 2px solid #7c3aed;
+      background: #f5f3ff;
+    }
+    .child-zone {
+      margin: 6px auto 0;
+      padding: 6px 10px;
+      border: 1px dashed #a78bfa;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #5b21b6;
+      width: max-content;
+    }
+    .tree {
+      overflow-x: auto;
+      padding: 10px;
+    }
+    .tree ul {
+      padding-top: 20px;
+      position: relative;
+      padding-left: 0;
+      display: flex;
+      justify-content: center;
+    }
+    .tree li {
+      list-style-type: none;
+      text-align: center;
+      margin: 0 20px;
+      position: relative;
+      padding: 20px 5px 0 5px;
+    }
+    .tree li::before,
+    .tree li::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 50%;
+      border-top: 2px solid #d1d5db;
+      width: 50%;
+      height: 20px;
+    }
+    .tree li::after {
+      right: auto;
+      left: 50%;
+      border-left: 2px solid #d1d5db;
+      width: 50%;
+    }
+    .tree li:only-child::after,
+    .tree li:only-child::before {
+      display: none;
+    }
+    .tree li:only-child {
+      padding-top: 0;
+    }
+    .tree li:first-child::before,
+    .tree li:last-child::after {
+      border: 0 none;
+    }
+    .tree li:last-child::before {
+      border-right: 2px solid #d1d5db;
+      border-radius: 0 5px 0 0;
+    }
+    .tree li:first-child::after {
+      border-radius: 5px 0 0 0;
+    }
+    .tree ul ul::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      border-left: 2px solid #d1d5db;
+      width: 0;
+      height: 20px;
+    }
+    .node {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: #f3f4f6;
+      font-weight: 600;
+      min-width: 140px;
+    }
+    .node.root {
+      background: #7c3aed;
+      color: white;
+    }
+    .node.person {
+      background: #7c3aed;
+      color: white;
+    }
+    .node.pair {
+      background: #111827;
+      color: white;
+    }
+    .tree-actions {
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+{% endblock %}

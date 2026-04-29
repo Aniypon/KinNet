@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Задача{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>{{ task.title }}</h2>
+    <p>{{ task.description|default:"Описание не указано." }}</p>
+    <div class="meta">Статус: {{ task.get_status_display }}</div>
+    {% if task.assignee %}
+      <div class="meta">Ответственный: {{ task.assignee.get_full_name|default:task.assignee.username }}</div>
+    {% endif %}
+    {% if task.due_date %}<div class="meta">Срок: {{ task.due_date|date_ru }}</div>{% endif %}
+    <div class="meta">Бюджет: {{ task.budget }} | Расходы: {{ total_cost }}</div>
+    <div class="meta">Напоминать за: {{ task.remind_days_before }} дн.</div>
+    {% if can_manage %}
+      <div class="meta">
+        <a href="/tasks/{{ task.id }}/edit/">Редактировать</a> ·
+        <a href="/tasks/{{ task.id }}/delete/">Удалить</a>
+      </div>
+    {% endif %}
+  </section>
+
+  <div class="split" style="margin-top: 16px;">
+    <section class="card">
+      <h3>Чек‑лист</h3>
+      {% if task.checklist_items.all %}
+        <ul>
+          {% for item in task.checklist_items.all %}
+            <li>
+              <form method="post" style="display: flex; align-items: center; gap: 8px;">
+                {% csrf_token %}
+                <input type="hidden" name="toggle-id" value="{{ item.id }}">
+                <input type="checkbox" name="toggle-done" onchange="this.form.submit()" {% if item.is_done %}checked{% endif %}>
+                <strong>{{ item.title }}</strong>
+                {% if item.is_done %}<span class="meta">(выполнено)</span>{% endif %}
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Чек‑лист пуст.</p>
+      {% endif %}
+
+      <form method="post" style="margin-top: 12px;">
+        {% csrf_token %}
+        {{ checklist_form.as_p }}
+        <button class="btn" type="submit">Добавить пункт</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3>Финансовое участие</h3>
+      {% if task.contributions.all %}
+        <ul>
+          {% for item in task.contributions.all %}
+            <li>
+              <strong>{{ item.user.get_full_name|default:item.user.username }}</strong>
+              <span class="meta">(@{{ item.user.username }})</span> — {{ item.amount }}
+              {% if item.comment %}<div class="meta">{{ item.comment }}</div>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Вклады пока не добавлены.</p>
+      {% endif %}
+
+      <form method="post" style="margin-top: 12px;">
+        {% csrf_token %}
+        {{ contribution_form.as_p }}
+        <button class="btn" type="submit">Добавить вклад</button>
+      </form>
+    </section>
+  </div>
+    <section class="card" style="max-width: 720px; margin: 16px auto 0;">
+      <h3>Комментарии</h3>
+      {% if comments %}
+        <ul>
+          {% for comment in comments %}
+            <li>
+              <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+              <div class="meta">{{ comment.text }}</div>
+              <div class="meta">{{ comment.created_at|date_ru }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Комментариев пока нет.</p>
+      {% endif %}
+
+      <form method="post" style="margin-top: 12px;">
+        {% csrf_token %}
+        {{ comment_form.as_p }}
+        <button class="btn" type="submit" name="comment-text" value="1">Отправить</button>
+      </form>
+    </section>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Подтверждение Telegram{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Подтверждение Telegram</h2>
+    <p class="meta">{{ message }}</p>
+    {% if success %}
+      <a class="btn" href="/">На главную</a>
+    {% else %}
+      <a class="btn secondary" href="/">На главную</a>
+    {% endif %}
+  </section>
+{% endblock %}

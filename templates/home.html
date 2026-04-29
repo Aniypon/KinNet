@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Семейный круг — Главная{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h1>Семейный круг</h1>
+    <p>Единое пространство для семьи: контакты, важные даты, задачи и общение.</p>
+    {% if request.user.is_authenticated %}
+      {% if family %}
+        <p class="meta">Текущая семья: <strong>{{ family.name }}</strong></p>
+      {% else %}
+        <p class="meta">Семья не выбрана. Создайте семейную группу.</p>
+      {% endif %}
+      {% if pending_telegram %}
+        <div class="meta" style="margin-top: 12px;">Нужно подтвердить привязку Telegram:</div>
+        <ul>
+          <li>
+            Telegram пользователя @{{ pending_telegram.username|default:request.user.username }} —
+            <a href="/telegram/confirm/{{ pending_telegram.confirm_token }}/">Подтвердить</a>
+          </li>
+        </ul>
+      {% endif %}
+      {% if pending_invitations %}
+        <div class="meta" style="margin-top: 12px;">У вас есть приглашения:</div>
+        <ul>
+          {% for invite in pending_invitations %}
+            <li>
+              {{ invite.family.name }} —
+              <a href="/invites/{{ invite.token }}/accept/">Принять приглашение</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% else %}
+      <p class="meta">Войдите или зарегистрируйтесь, чтобы начать.</p>
+    {% endif %}
+  </section>
+
+  <section class="grid" style="margin-top: 16px;">
+    <article class="card">
+      <h3>Родственные связи</h3>
+      {% if family %}
+        <p class="meta">Участников: <strong>{{ family.family_members.count }}</strong></p>
+        <a class="btn secondary" href="/family-tree/">Открыть дерево</a>
+      {% else %}
+        <p class="meta">Выберите семейную группу, чтобы видеть связи.</p>
+      {% endif %}
+    </article>
+    <article class="card">
+      <h3>События</h3>
+      {% if family %}
+        {% if upcoming_events %}
+          <ul class="list">
+            {% for event in upcoming_events %}
+              <li>
+                <strong>{{ event.title }}</strong>
+                <div class="meta">
+                  {% if event.kind == "birthday" %}
+                    {{ event.next_date|date_ru_short }}
+                  {% else %}
+                    {{ event.next_date|date_ru }}
+                  {% endif %}
+                  {% if event.member %} · {{ event.member }}{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="meta">Нет ближайших событий.</p>
+        {% endif %}
+        <a class="btn secondary" href="/events/" style="margin-top: 8px;">К событиям</a>
+      {% else %}
+        <p class="meta">Выберите семью, чтобы видеть события.</p>
+      {% endif %}
+    </article>
+    <article class="card">
+      <h3>Задачи</h3>
+      {% if family %}
+        {% if upcoming_tasks %}
+          <ul class="list">
+            {% for task in upcoming_tasks %}
+              <li>
+                <strong>{{ task.title }}</strong>
+                <div class="meta">Срок: {{ task.due_date|date_ru }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="meta">Нет ближайших задач.</p>
+        {% endif %}
+        <a class="btn secondary" href="/tasks/" style="margin-top: 8px;">К задачам</a>
+      {% else %}
+        <p class="meta">Выберите семью, чтобы видеть задачи.</p>
+      {% endif %}
+    </article>
+    <article class="card">
+      <h3>Сообщения</h3>
+      {% if family %}
+        {% if latest_message %}
+          <p><strong>{{ latest_message.sender.get_full_name|default:latest_message.sender.username }}</strong></p>
+          <p class="meta">{{ latest_message.text|truncatechars:140 }}</p>
+        {% else %}
+          <p class="meta">Сообщений пока нет.</p>
+        {% endif %}
+        <a class="btn secondary" href="/messages/" style="margin-top: 8px;">К сообщениям</a>
+      {% else %}
+        <p class="meta">Выберите семью, чтобы видеть сообщения.</p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

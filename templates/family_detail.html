@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Управление семьёй{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>{{ family.name }}</h2>
+    {% if family.description %}<p class="meta">{{ family.description }}</p>{% endif %}
+    <div class="meta">Участники и роли</div>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <ul>
+      {% for membership in memberships %}
+        <li style="margin-bottom: 12px;">
+          <strong>{{ membership.user.get_full_name|default:membership.user.username }}</strong>
+          <span class="meta">(@{{ membership.user.username }})</span>
+          <span class="meta">(роль: {{ membership.get_role_display }})</span>
+          {% if can_manage_roles %}
+            <form method="post" style="margin-top: 6px;">
+              {% csrf_token %}
+              <input type="hidden" name="membership_id" value="{{ membership.id }}" />
+              <input type="hidden" name="action" value="role" />
+              {{ role_form.role }}
+              <button class="btn secondary" type="submit">Сохранить роль</button>
+            </form>
+          {% endif %}
+          {% if can_invite and membership.role != "owner" %}
+            <div class="meta">
+              <a href="/families/{{ family.id }}/members/{{ membership.id }}/remove/">Удалить участника</a>
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h3>Пригласить участника</h3>
+    {% if can_invite %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="invite" />
+        <p>
+          <label for="invite-username">Никнейм</label>
+          <input
+            id="invite-username"
+            name="username"
+            list="username-suggestions"
+            autocomplete="off"
+          />
+          <datalist id="username-suggestions"></datalist>
+        </p>
+        {% if invite_form.non_field_errors %}
+          <div class="meta">{{ invite_form.non_field_errors }}</div>
+        {% endif %}
+        <button class="btn" type="submit">Пригласить</button>
+      </form>
+    {% else %}
+      <p class="meta">Недостаточно прав для приглашения.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h3>Приглашения</h3>
+    {% if invitations %}
+      <ul>
+        {% for invitation in invitations %}
+          <li style="margin-bottom: 12px;">
+            <strong>@{{ invitation.username }}</strong>
+            <span class="meta">({{ invitation.get_status_display }})</span>
+            {% if invitation.status == "pending" %}
+              <div class="meta">Ссылка: /invites/{{ invitation.token }}/accept/</div>
+              {% if can_invite %}
+                <form method="post" action="/invites/{{ invitation.id }}/revoke/">
+                  {% csrf_token %}
+                  <button class="btn secondary" type="submit">Отозвать</button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="meta">Приглашений пока нет.</p>
+    {% endif %}
+  </section>
+  <script>
+    const usernameInput = document.getElementById("invite-username");
+    const datalist = document.getElementById("username-suggestions");
+    if (usernameInput && datalist) {
+      let timer;
+      usernameInput.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const value = usernameInput.value.trim();
+          if (!value) {
+            datalist.innerHTML = "";
+            return;
+          }
+          const response = await fetch(`/users/suggest/?q=${encodeURIComponent(value)}&family={{ family.id }}`);
+          const data = await response.json();
+          datalist.innerHTML = data.results.map((item) => `<option value="${item}"></option>`).join("");
+        }, 150);
+      });
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}События{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Выбор семьи</h2>
+    {% if families %}
+      <form method="get">
+        <label for="family">Семья</label>
+        <select id="family" name="family" onchange="this.form.submit()">
+          {% for item in families %}
+            <option value="{{ item.id }}" {% if family and family.id == item.id %}selected{% endif %}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="filters">
+          <input
+            id="event-search"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Поиск по названию события"
+          />
+          <select id="event-kind" name="kind">
+            <option value="" {% if not kind %}selected{% endif %}>Все типы</option>
+            <option value="birthday" {% if kind == "birthday" %}selected{% endif %}>День рождения</option>
+            <option value="holiday" {% if kind == "holiday" %}selected{% endif %}>Праздник</option>
+            <option value="family" {% if kind == "family" %}selected{% endif %}>Семейное</option>
+            <option value="other" {% if kind == "other" %}selected{% endif %}>Другое</option>
+          </select>
+          <button class="btn secondary small" type="submit">Фильтр</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <div class="split" style="margin-top: 16px;">
+    <section class="card">
+      <h2>Календарь событий</h2>
+      {% if events %}
+        <div class="grid" id="events-grid">
+          {% for item in events %}
+            <div class="card event-card" data-kind="{{ item.kind }}" data-title="{{ item.title }}">
+              <strong><a href="/events/{{ item.id }}/">{{ item.title }}</a></strong>
+              <div class="meta">
+                {% if item.kind == "birthday" %}
+                  {{ item.date|date_ru_short }} ·
+                {% else %}
+                  {{ item.date|date_ru }} ·
+                {% endif %}
+                <span class="badge {{ item.kind }}">{{ item.get_kind_display }}</span>
+              </div>
+              {% if item.member %}<div class="meta">Связано с: {{ item.member }}</div>{% endif %}
+              {% if item.tags.exists %}
+                <div class="meta">Метки: {% for tag in item.tags.all %}<span class="badge other">{{ tag.name }}</span> {% endfor %}</div>
+              {% endif %}
+              {% if can_manage %}
+                <div class="card-actions">
+                  <a class="btn secondary small" href="/events/{{ item.id }}/edit/">Редактировать</a>
+                  <a class="btn secondary small" href="/events/{{ item.id }}/delete/">Удалить</a>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="meta">Пока нет событий.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Добавить событие</h2>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const eventSearch = document.getElementById("event-search");
+    const eventKind = document.getElementById("event-kind");
+    const eventCards = document.querySelectorAll(".event-card");
+
+    const applyEventFilter = () => {
+      const query = (eventSearch?.value || "").trim().toLowerCase();
+      const kind = eventKind?.value || "";
+      eventCards.forEach((card) => {
+        const title = (card.dataset.title || "").toLowerCase();
+        const matchesQuery = title.includes(query);
+        const matchesKind = !kind || card.dataset.kind === kind;
+        card.style.display = matchesQuery && matchesKind ? "block" : "none";
+      });
+    };
+
+    if (eventSearch) eventSearch.addEventListener("input", applyEventFilter);
+    if (eventKind) eventKind.addEventListener("change", applyEventFilter);
+  </script>
+{% endblock %}

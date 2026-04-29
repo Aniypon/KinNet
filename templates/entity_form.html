@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 720px; margin: 0 auto;">
+    <h2>{{ title }}</h2>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% if form.instance.avatar %}
+        <p>
+          <img src="{{ form.instance.avatar.url }}" alt="Аватар" style="width: 96px; height: 96px; object-fit: cover; border-radius: 50%;" />
+        </p>
+      {% endif %}
+      {{ form.as_p }}
+      <button class="btn" type="submit">Сохранить</button>
+    </form>
+  </section>
+{% endblock %}

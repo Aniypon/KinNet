@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Родственники{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Выбор семьи</h2>
+    {% if families %}
+      <form method="get">
+        <label for="family">Семья</label>
+        <select id="family" name="family" onchange="this.form.submit()">
+          {% for item in families %}
+            <option value="{{ item.id }}" {% if family and family.id == item.id %}selected{% endif %}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="filters">
+          <input
+            id="member-search"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Поиск по имени/никнейму/родству"
+          />
+          <button class="btn secondary small" type="submit">Найти</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h2>Дерево родственников</h2>
+    <p class="meta">Сформировать дерево из всех участников семьи.</p>
+    {% if family %}
+      <a class="btn" href="/family-tree/?family={{ family.id }}">Открыть дерево</a>
+    {% else %}
+      <p class="meta">Сначала выберите семью.</p>
+    {% endif %}
+  </section>
+
+  <div class="split" style="margin-top: 16px;">
+    <section class="card">
+      <h2>Список родственников</h2>
+      <h3 class="meta">Участники семьи</h3>
+      {% if memberships %}
+        <div class="grid" id="memberships-grid">
+          {% for membership in memberships %}
+            {% with profile=profiles_by_user|get_item:membership.user.id %}
+              <div
+                class="card member-card"
+                data-name="{{ membership.user.get_full_name|default:membership.user.username }} {{ membership.user.username }} {{ membership.get_role_display }}"
+              >
+                <div class="card-row">
+                  <div class="avatar">
+                    {% if profile and profile.avatar %}
+                      <img src="{{ profile.avatar.url }}" alt="Аватар" />
+                    {% else %}
+                      {{ membership.user.get_full_name|default:membership.user.username|slice:":1" }}
+                    {% endif %}
+                  </div>
+                  <div>
+                    <strong>
+                      <a href="/members/user/{{ membership.user.id }}/">
+                        {{ membership.user.get_full_name|default:membership.user.username }}
+                      </a>
+                    </strong>
+                    <div class="meta">@{{ membership.user.username }}</div>
+                    <div class="meta">Роль: {{ membership.get_role_display }}</div>
+                  </div>
+                </div>
+              </div>
+            {% endwith %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="meta">Участников пока нет.</p>
+      {% endif %}
+
+      <h3 class="meta" style="margin-top: 16px;">Добавленные родственники</h3>
+      {% if members %}
+        <div class="grid" id="members-grid">
+          {% for member in members %}
+            <div class="card member-card" data-name="{{ member }} {{ member.relation }}">
+              <div class="card-row">
+                <div class="avatar">
+                  {{ member|slice:":1" }}
+                </div>
+                <div>
+                  <strong><a href="/members/{{ member.id }}/">{{ member }}</a></strong>
+                  {% if member.relation %}<div class="meta">{{ member.relation }}</div>{% endif %}
+                  {% if member.phone %}<div class="meta">Телефон: {{ member.phone }}</div>{% endif %}
+                  {% if member.birth_date %}<div class="meta">День рождения: {{ member.birth_date|date_ru }}</div>{% endif %}
+                </div>
+              </div>
+              {% if can_manage %}
+                <div class="card-actions">
+                  <a class="btn secondary small" href="/members/{{ member.id }}/edit/">Редактировать</a>
+                  <a class="btn secondary small" href="/members/{{ member.id }}/delete/">Удалить</a>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="meta">Пока нет данных о родственниках.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Добавить родственника</h2>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const memberSearch = document.getElementById("member-search");
+    const memberCards = document.querySelectorAll(".member-card");
+    if (memberSearch) {
+      memberSearch.addEventListener("input", () => {
+        const value = memberSearch.value.trim().toLowerCase();
+        memberCards.forEach((card) => {
+          const name = (card.dataset.name || "").toLowerCase();
+          card.style.display = name.includes(value) ? "block" : "none";
+        });
+      });
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Задачи{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Выбор семьи</h2>
+    {% if families %}
+      <form method="get">
+        <label for="family">Семья</label>
+        <select id="family" name="family" onchange="this.form.submit()">
+          {% for item in families %}
+            <option value="{{ item.id }}" {% if family and family.id == item.id %}selected{% endif %}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <div class="filters">
+          <input
+            id="task-search"
+            type="text"
+            name="q"
+            value="{{ query }}"
+            placeholder="Поиск по названию задачи"
+          />
+          <select id="task-status" name="status">
+            <option value="" {% if not status %}selected{% endif %}>Все статусы</option>
+            <option value="todo" {% if status == "todo" %}selected{% endif %}>Нужно сделать</option>
+            <option value="in_progress" {% if status == "in_progress" %}selected{% endif %}>В процессе</option>
+            <option value="done" {% if status == "done" %}selected{% endif %}>Готово</option>
+          </select>
+          <button class="btn secondary small" type="submit">Фильтр</button>
+        </div>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  <div class="split" style="margin-top: 16px;">
+    <section class="card">
+      <h2>Список задач</h2>
+      {% if tasks %}
+        <div class="grid" id="tasks-grid">
+          {% for item in tasks %}
+            <div class="card task-card" data-status="{{ item.status }}" data-title="{{ item.title }}">
+              <strong><a href="/tasks/{{ item.id }}/">{{ item.title }}</a></strong>
+              <div class="meta">
+                Статус: <span class="badge {{ item.status }}">{{ item.get_status_display }}</span>
+              </div>
+              {% if item.assignee %}
+                <div class="meta">
+                  Ответственный: {{ item.assignee.get_full_name|default:item.assignee.username }}
+                </div>
+              {% endif %}
+              {% if item.due_date %}<div class="meta">Срок: {{ item.due_date|date_ru }}</div>{% endif %}
+              <div class="meta">Напоминать за: {{ item.remind_days_before }} дн.</div>
+              {% if item.tags.exists %}
+                <div class="meta">Метки: {% for tag in item.tags.all %}<span class="badge other">{{ tag.name }}</span> {% endfor %}</div>
+              {% endif %}
+
+              <div class="card-actions">
+                <form method="post" style="margin: 0; display: flex; flex-wrap: wrap; gap: 8px;">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="status" />
+                  <input type="hidden" name="task_id" value="{{ item.id }}" />
+                  <button class="btn secondary small" type="submit" name="status" value="todo">Нужно сделать</button>
+                  <button class="btn secondary small" type="submit" name="status" value="in_progress">В процессе</button>
+                  <button class="btn secondary small" type="submit" name="status" value="done">Готово</button>
+                </form>
+                {% if can_manage %}
+                  <a class="btn secondary small" href="/tasks/{{ item.id }}/edit/">Редактировать</a>
+                  <a class="btn secondary small" href="/tasks/{{ item.id }}/delete/">Удалить</a>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="meta">Пока нет задач.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Добавить задачу</h2>
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const taskSearch = document.getElementById("task-search");
+    const taskStatus = document.getElementById("task-status");
+    const taskCards = document.querySelectorAll(".task-card");
+
+    const applyTaskFilter = () => {
+      const query = (taskSearch?.value || "").trim().toLowerCase();
+      const status = taskStatus?.value || "";
+      taskCards.forEach((card) => {
+        const title = (card.dataset.title || "").toLowerCase();
+        const matchesQuery = title.includes(query);
+        const matchesStatus = !status || card.dataset.status === status;
+        card.style.display = matchesQuery && matchesStatus ? "block" : "none";
+      });
+    };
+
+    if (taskSearch) taskSearch.addEventListener("input", applyTaskFilter);
+    if (taskStatus) taskStatus.addEventListener("change", applyTaskFilter);
+  </script>
+{% endblock %}
