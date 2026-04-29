@@ -9,6 +9,8 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from asgiref.sync import sync_to_async
 
+from core.tasks import tg_escape
+
 from ..keyboards.menus import main_menu
 
 router = Router(name="auth")
@@ -53,9 +55,9 @@ async def on_start(message: Message) -> None:
         )
         return
 
+    name = profile.user.get_full_name() or profile.user.username
     await message.answer(
-        f"С возвращением, {profile.user.get_full_name() or profile.user.username}! "
-        "Используйте меню ниже:",
+        f"С возвращением, {tg_escape(name)}! Используйте меню ниже:",
         reply_markup=main_menu(),
     )
 

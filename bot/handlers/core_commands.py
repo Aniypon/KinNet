@@ -9,6 +9,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from asgiref.sync import sync_to_async
 
+from core.tasks import tg_escape
+
 router = Router(name="commands")
 
 
@@ -54,11 +56,13 @@ def _today_lines(user) -> list[str]:
     if today_events:
         lines.append("\n<b>События:</b>")
         for ev in today_events:
-            lines.append(f"• {ev.title} · {ev.family.name}")
+            lines.append(
+                f"• {tg_escape(ev.title)} · {tg_escape(ev.family.name)}"
+            )
     if tasks_due:
         lines.append("\n<b>Задачи:</b>")
         for task in tasks_due:
-            lines.append(f"• {task.title}")
+            lines.append(f"• {tg_escape(task.title)}")
     if len(lines) == 1:
         lines.append("Сегодня всё спокойно ✨")
     return lines
@@ -88,7 +92,10 @@ def _events_lines(user, days: int) -> list[str]:
         return [f"Ближайших событий на {days} дн. нет."]
     lines = [f"<b>Ближайшие события ({days} дн.)</b>"]
     for occurrence, event in upcoming[:10]:
-        lines.append(f"• {occurrence:%d.%m} — {event.title} · {event.family.name}")
+        lines.append(
+            f"• {occurrence:%d.%m} — {tg_escape(event.title)} · "
+            f"{tg_escape(event.family.name)}"
+        )
     return lines
 
 
@@ -110,7 +117,7 @@ def _tasks_lines(user) -> list[str]:
     lines = ["<b>Активные задачи:</b>"]
     for task in tasks:
         due = f" до {task.due_date:%d.%m}" if task.due_date else ""
-        lines.append(f"• {task.title}{due}")
+        lines.append(f"• {tg_escape(task.title)}{due}")
     return lines
 
 
@@ -131,7 +138,7 @@ def _messages_lines(user) -> list[str]:
     lines = ["<b>Последние сообщения:</b>"]
     for msg in msgs:
         name = msg.sender.get_full_name() or msg.sender.username
-        lines.append(f"• {name}: {msg.text[:80]}")
+        lines.append(f"• {tg_escape(name)}: {tg_escape(msg.text[:80])}")
     return lines
 
 
@@ -148,7 +155,7 @@ def _families_lines(user) -> list[str]:
         return ["Вы пока не состоите ни в одной семье."]
     lines = ["<b>Мои семьи:</b>"]
     for family in families:
-        lines.append(f"• {family.name}")
+        lines.append(f"• {tg_escape(family.name)}")
     return lines
 
 

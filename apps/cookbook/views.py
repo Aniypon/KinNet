@@ -119,6 +119,7 @@ def shopping_list_detail(request, list_id: int):
 
 
 @login_required
+@require_POST
 def shopping_item_toggle(request, item_id: int):
     item = get_object_or_404(
         ShoppingItem.objects.filter(
