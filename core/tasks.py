@@ -77,7 +77,7 @@ def send_daily_reminders() -> int:
             continue
 
         lines: list[str] = ["<b>Сегодня в KinNet:</b>"]
-        for occ, event in sorted(upcoming_events)[:6]:
+        for occ, event in sorted(upcoming_events, key=lambda pair: pair[0])[:6]:
             lines.append(f"• {occ:%d.%m} — {event.title} ({event.family.name})")
         for task in due_tasks:
             due = f" до {task.due_date:%d.%m}" if task.due_date else ""

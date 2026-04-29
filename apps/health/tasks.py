@@ -46,7 +46,9 @@ def send_medication_reminders() -> int:
             )
             # Wrap around midnight: 23:50 vs 00:05 should be 15 min, not 1425.
             delta_minutes = min(raw_delta, 1440 - raw_delta)
-            if delta_minutes > 15:
+            # Strict ``>=`` because beat fires every 30 minutes; the boundary
+            # value (15) would otherwise match two consecutive runs.
+            if delta_minutes >= 15:
                 continue
             text = f"💊 Напоминание: {med.member} — {med.name} ({med.dosage}) в {raw}"
             recipients = FamilyMembership.objects.filter(
