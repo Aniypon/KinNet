@@ -6,15 +6,26 @@ import logging
 from datetime import time
 
 from celery import shared_task
+from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+_REMINDER_WINDOW_MINUTES = 15
+_DEDUP_TTL_SECONDS = 18 * 60 * 60  # ample buffer past the next scheduled dose
+
 
 @shared_task(name="apps.health.tasks.send_medication_reminders")
 def send_medication_reminders() -> int:
-    """Send a reminder when a medication's scheduled HH:MM matches now (±15 min)."""
+    """Send a reminder when a medication's scheduled HH:MM matches now (±15 min).
+
+    Beat runs every 30 minutes, so any HH:MM falls within the ±15-minute window
+    of *exactly one* run in the common case — but boundary times (e.g. HH:15)
+    sit equidistant between two runs. To keep coverage symmetric without
+    double-firing, we use an inclusive ``<=`` check and de-duplicate per
+    ``(medication, time, day)`` via the cache.
+    """
     from core.models import FamilyMembership
     from core.tasks import _send_telegram
 
@@ -46,9 +57,12 @@ def send_medication_reminders() -> int:
             )
             # Wrap around midnight: 23:50 vs 00:05 should be 15 min, not 1425.
             delta_minutes = min(raw_delta, 1440 - raw_delta)
-            # Strict ``>=`` because beat fires every 30 minutes; the boundary
-            # value (15) would otherwise match two consecutive runs.
-            if delta_minutes >= 15:
+            if delta_minutes > _REMINDER_WINDOW_MINUTES:
+                continue
+            # Once-per-day lock so beat boundary times (e.g. 08:15 with runs at
+            # 08:00 and 08:30) still fire exactly once per day.
+            dedup_key = f"med-reminder:{med.pk}:{raw}:{today.isoformat()}"
+            if not cache.add(dedup_key, "1", _DEDUP_TTL_SECONDS):
                 continue
             text = f"💊 Напоминание: {med.member} — {med.name} ({med.dosage}) в {raw}"
             recipients = FamilyMembership.objects.filter(

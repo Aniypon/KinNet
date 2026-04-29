@@ -60,7 +60,7 @@ class FamilyMember(models.Model):
 	last_name = models.CharField(max_length=80, blank=True)
 	middle_name = models.CharField(max_length=80, blank=True)
 	relation = models.CharField(max_length=80, blank=True)
-	birth_date = models.DateField()
+	birth_date = models.DateField(null=True, blank=True)
 	phone = models.CharField(max_length=40, blank=True)
 	email = models.EmailField(blank=True)
 	address_home = models.CharField(max_length=255, blank=True)

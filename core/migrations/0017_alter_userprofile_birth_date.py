@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0016_familymember_birth_date_required'),
+        ('core', '0015_goals_tags_comments_album'),
     ]
 
     operations = [
