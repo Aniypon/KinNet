@@ -1,5 +1,5 @@
 {% load static %}<!doctype html>
-<html lang="ru" data-theme="{{ ui_theme|default:'light' }}">
+<html lang="ru" data-theme="{% if ui_elder_mode %}elder{% else %}{{ ui_theme|default:'light' }}{% endif %}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
