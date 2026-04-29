@@ -3,12 +3,10 @@ import os
 
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-
-from telegram import Bot
 
 from .forms import (
 	EventForm,
@@ -196,13 +194,12 @@ def telegram_confirm(request, token):
 		profile.confirmed_at = timezone.now()
 		profile.save(update_fields=["is_confirmed", "confirmed_at"])
 		try:
-			token = os.getenv("TELEGRAM_BOT_TOKEN")
-			if token:
-				bot = Bot(token=token)
-				bot.send_message(
-					chat_id=profile.chat_id,
-					text="Привязка Telegram успешно подтверждена. Теперь команды доступны.",
-				)
+			from core.tasks import _send_telegram
+
+			_send_telegram(
+				profile.chat_id,
+				"Привязка Telegram успешно подтверждена. Теперь команды доступны.",
+			)
 		except Exception:
 			pass
 
@@ -1183,4 +1180,65 @@ def message_delete(request, message_id):
 		request,
 		"confirm_delete.html",
 		{"title": "Удалить сообщение", "object": message},
+	)
+
+
+# ---------------------------------------------------------------------------
+# UI preferences (elder mode / theme)
+# ---------------------------------------------------------------------------
+def ui_set_pref(request):
+	"""Toggle elder mode / theme stored in the session.
+
+	HTMX-friendly: returns 204 so callers can simply reload the page.
+	Accepts POST with ``elder`` (1/0) and/or ``theme`` (light/dark/elder).
+	"""
+	if request.method != "POST":
+		return HttpResponse(status=405)
+	if "elder" in request.POST:
+		request.session["elder_mode"] = request.POST.get("elder") in {"1", "true", "on"}
+	if "theme" in request.POST:
+		theme = request.POST.get("theme") or "light"
+		if theme not in {"light", "dark", "elder"}:
+			theme = "light"
+		request.session["theme"] = theme
+	request.session.modified = True
+	return HttpResponse(status=204)
+
+
+@login_required
+def family_tree_graph(request):
+	"""Interactive D3-driven family-tree graph with zoom + drag."""
+	user = request.user
+	family_id = request.GET.get("family")
+	families_qs = Family.objects.filter(
+		Q(memberships__user=user) | Q(created_by=user)
+	).distinct()
+
+	family = None
+	if family_id:
+		family = families_qs.filter(pk=family_id).first()
+	family = family or families_qs.first()
+	members = []
+	if family:
+		members = list(
+			FamilyMember.objects.filter(family=family).values(
+				"id",
+				"first_name",
+				"last_name",
+				"middle_name",
+				"relation",
+				"birth_date",
+				"parent1_id",
+				"parent2_id",
+				"spouse_id",
+			)
+		)
+	return render(
+		request,
+		"family_tree_graph.html",
+		{
+			"families": families_qs,
+			"current_family": family,
+			"members_json": json.dumps(members, default=str, ensure_ascii=False),
+		},
 	)

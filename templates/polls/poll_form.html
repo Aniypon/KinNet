@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Новый опрос{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Новый опрос</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>Семья</label>
+    <select name="family" required>
+      {% for f in families %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+    </select>
+    <label>Вопрос</label><input name="question" required>
+    <label>Описание</label><textarea name="description" rows="3"></textarea>
+    <label><input type="checkbox" name="allow_multiple"> Разрешить несколько вариантов</label>
+    <label>Варианты (по строке)</label><textarea name="choices" rows="6" required></textarea>
+    <button class="btn" type="submit">Создать</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Списки покупок{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Списки покупок</h1>
+  <p>Доступны офлайн через PWA — открывайте «Покупки» в нижнем меню даже без сети.</p>
+</section>
+<div class="grid" style="margin-top:16px;">
+  {% for shopping_list in lists %}
+    <a class="card" href="{% url 'cookbook:shopping_list_detail' shopping_list.id %}" style="text-decoration:none;color:inherit;">
+      <h3>{{ shopping_list.name }}</h3>
+      <p class="meta">{{ shopping_list.family.name }} · {{ shopping_list.created_at|date:"d.m.Y" }}</p>
+    </a>
+  {% empty %}<p>Пока нет списков.</p>{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Карта здоровья — {{ member }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Карта здоровья — {{ member }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>Группа крови</label>
+    <select name="blood_type">
+      {% for code, label in record.BLOOD_TYPE_CHOICES %}
+        <option value="{{ code }}" {% if record.blood_type == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <label>Аллергии</label><textarea name="allergies" rows="3">{{ record.allergies }}</textarea>
+    <label>Хронические заболевания</label><textarea name="chronic_conditions" rows="3">{{ record.chronic_conditions }}</textarea>
+    <label>Страховка</label><input name="insurance_info" value="{{ record.insurance_info }}">
+    <label>Контакт в экстренном случае</label><input name="emergency_contact" value="{{ record.emergency_contact }}">
+    <label>Заметки</label><textarea name="notes" rows="3">{{ record.notes }}</textarea>
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+</section>
+{% endblock %}

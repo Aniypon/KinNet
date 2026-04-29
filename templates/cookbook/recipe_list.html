@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Рецепты — KinNet{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Семейная кулинарная книга</h1>
+  <p>Общая база рецептов: любой можно превратить в список покупок.</p>
+  <a class="btn" href="{% url 'cookbook:recipe_create' %}">+ Рецепт</a>
+  <a class="btn secondary" href="{% url 'cookbook:shopping_list_index' %}">Списки покупок</a>
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for recipe in recipes %}
+    <a class="card" href="{% url 'cookbook:recipe_detail' recipe.id %}" style="text-decoration:none;color:inherit;">
+      <h3>{{ recipe.title }}</h3>
+      <p class="meta">{{ recipe.family.name }} · {{ recipe.cook_time_minutes }} мин · {{ recipe.servings }} порц.</p>
+      {% if recipe.tags %}<p class="meta">{{ recipe.tags }}</p>{% endif %}
+    </a>
+  {% empty %}
+    <p>Пока нет рецептов.</p>
+  {% endfor %}
+</div>
+{% endblock %}

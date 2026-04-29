@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ poll.question }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ poll.question }}</h1>
+  <p class="meta">{{ poll.family.name }} · {{ poll.author }}</p>
+  {% if poll.description %}<p>{{ poll.description }}</p>{% endif %}
+
+  <form method="post" action="{% url 'polls:poll_vote' poll.id %}">
+    {% csrf_token %}
+    {% for choice in choices %}
+      <label style="display:flex;gap:8px;align-items:center;">
+        <input type="{% if poll.allow_multiple %}checkbox{% else %}radio{% endif %}" name="choice" value="{{ choice.id }}"
+          {% if choice.id in user_voted_ids %}checked{% endif %}>
+        {{ choice.text }} <span class="meta">({{ choice.vote_count }})</span>
+      </label>
+    {% endfor %}
+    <button class="btn" type="submit" {% if poll.is_closed %}disabled{% endif %}>Голосовать</button>
+  </form>
+</section>
+{% endblock %}

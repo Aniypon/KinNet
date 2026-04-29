@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Новый вишлист{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Новый вишлист</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>Чей список</label>
+    <select name="owner_member" required>
+      {% for m in members %}<option value="{{ m.id }}">{{ m }} · {{ m.family.name }}</option>{% endfor %}
+    </select>
+    <label>Название</label><input name="title" value="Список желаний">
+    <button class="btn" type="submit">Создать</button>
+  </form>
+</section>
+{% endblock %}

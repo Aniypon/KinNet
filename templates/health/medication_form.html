@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Лекарство — {{ member }}{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Новое лекарство — {{ member }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>Название</label><input name="name" required>
+    <label>Дозировка</label><input name="dosage" placeholder="1 таблетка">
+    <label>Частота</label>
+    <select name="frequency">
+      <option value="daily">Ежедневно</option>
+      <option value="twice_daily">2 раза в день</option>
+      <option value="thrice_daily">3 раза в день</option>
+      <option value="weekly">Еженедельно</option>
+      <option value="as_needed">По необходимости</option>
+    </select>
+    <label>Время приёма (через запятую: 08:00,20:00)</label>
+    <input name="times" placeholder="08:00,20:00">
+    <label>Заметки</label><textarea name="notes" rows="3"></textarea>
+    <button class="btn" type="submit">Добавить</button>
+  </form>
+</section>
+{% endblock %}

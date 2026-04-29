@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Семейный бюджет{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Семейный бюджет</h1>
+  <p>Совместные траты по семьям.</p>
+  <a class="btn" href="{% url 'budget:expense_create' %}">+ Расход</a>
+  <a class="btn secondary" href="{% url 'budget:wishlist_index' %}">Вишлисты</a>
+
+  {% if totals %}
+    <div class="card-actions" style="margin-top:12px;">
+      {% for row in totals %}
+        <span class="badge">{{ row.family__name }} — {{ row.total }}</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for e in expenses %}
+    <div class="card">
+      <h3>{{ e.title }}</h3>
+      <p class="meta">{{ e.family.name }} · {{ e.spent_on|date:"d.m.Y" }} · {{ e.payer|default:"—" }}</p>
+      <p><strong>{{ e.amount }}</strong> {% if e.category %}<span class="badge">{{ e.category }}</span>{% endif %}</p>
+      {% if e.notes %}<p>{{ e.notes }}</p>{% endif %}
+    </div>
+  {% empty %}<p>Расходов нет.</p>{% endfor %}
+</div>
+{% endblock %}

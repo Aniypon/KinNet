@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ shopping_list.name }} — KinNet{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ shopping_list.name }}</h1>
+  <p class="meta">{{ shopping_list.family.name }}</p>
+
+  <ul id="items">
+    {% for item in shopping_list.items.all %}
+      <li class="{% if item.is_done %}done{% endif %}">
+        <input type="checkbox"
+               hx-post="{% url 'cookbook:shopping_item_toggle' item.id %}"
+               hx-target="closest li"
+               hx-swap="outerHTML"
+               {% if item.is_done %}checked{% endif %}>
+        {{ item.name }}
+        <span class="meta">{{ item.quantity }}</span>
+      </li>
+    {% empty %}<li>Список пуст</li>{% endfor %}
+  </ul>
+</section>
+{% endblock %}

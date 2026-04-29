@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Календарь — настройки{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Синхронизация календарей</h1>
+  <p>Подпишите Google Calendar / Apple Calendar на этот ICS-фид — события и дни рождения KinNet появятся автоматически.</p>
+
+  <label>Ваша приватная ссылка</label>
+  <input value="{{ feed_url }}" readonly onclick="this.select()" style="font-family:monospace">
+
+  <details style="margin-top:8px;">
+    <summary>Как подключить</summary>
+    <ol class="meta">
+      <li><strong>Google Calendar</strong>: «Другие календари» → «По URL» → вставьте ссылку.</li>
+      <li><strong>Apple Calendar</strong>: Файл → Новая подписка на календарь → ссылка.</li>
+      <li><strong>Outlook</strong>: «Добавить календарь» → «Подписаться через интернет».</li>
+    </ol>
+  </details>
+
+  <form method="post" style="margin-top:12px;">
+    {% csrf_token %}
+    <input type="hidden" name="rotate" value="1">
+    <button class="btn secondary" type="submit">Сменить ссылку</button>
+  </form>
+</section>
+{% endblock %}

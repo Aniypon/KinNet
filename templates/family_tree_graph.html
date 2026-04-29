@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Семейное древо — KinNet{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Семейное древо</h1>
+  <p>Зум, перетаскивание, клики на профили. Граф рендерится из ваших связей родитель–ребёнок.</p>
+
+  <form method="get" style="margin-bottom: 16px;">
+    <label>Семья</label>
+    <select name="family" onchange="this.form.submit()">
+      {% for family in families %}
+        <option value="{{ family.id }}" {% if current_family and current_family.id == family.id %}selected{% endif %}>{{ family.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {% if current_family %}
+    <div id="tree-graph" style="width:100%;height:560px;border-radius:16px;background:#fff;box-shadow:0 6px 24px rgba(31,41,55,0.06);"></div>
+  {% else %}
+    <p>У вас пока нет семей.</p>
+  {% endif %}
+</section>
+
+{% if current_family %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script id="members-data" type="application/json">{{ members_json|safe }}</script>
+<script>
+  (function () {
+    const data = JSON.parse(document.getElementById("members-data").textContent || "[]");
+    const container = document.getElementById("tree-graph");
+    if (!container || !data.length) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const idMap = new Map(data.map((m) => [m.id, m]));
+
+    const links = [];
+    data.forEach((member) => {
+      [member.parent1_id, member.parent2_id].forEach((pid) => {
+        if (pid && idMap.has(pid)) links.push({ source: pid, target: member.id, kind: "parent" });
+      });
+      if (member.spouse_id && idMap.has(member.spouse_id) && member.id < member.spouse_id) {
+        links.push({ source: member.id, target: member.spouse_id, kind: "spouse" });
+      }
+    });
+
+    const svg = d3.select(container).append("svg")
+      .attr("width", width).attr("height", height)
+      .attr("viewBox", [0, 0, width, height]);
+    const g = svg.append("g");
+
+    svg.call(
+      d3.zoom().scaleExtent([0.4, 3]).on("zoom", (event) => g.attr("transform", event.transform))
+    );
+
+    const sim = d3.forceSimulation(data)
+      .force("link", d3.forceLink(links).id((d) => d.id).distance(110))
+      .force("charge", d3.forceManyBody().strength(-300))
+      .force("center", d3.forceCenter(width / 2, height / 2));
+
+    const link = g.append("g").attr("stroke-opacity", 0.5).selectAll("line")
+      .data(links).join("line")
+      .attr("stroke", (d) => d.kind === "spouse" ? "#ec4899" : "#a78bfa")
+      .attr("stroke-width", (d) => d.kind === "spouse" ? 2 : 1.4)
+      .attr("stroke-dasharray", (d) => d.kind === "spouse" ? "4 3" : null);
+
+    const node = g.append("g").selectAll("g.node")
+      .data(data).join("g").attr("class", "node").style("cursor", "pointer")
+      .call(d3.drag()
+        .on("start", (event, d) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+        .on("end", (event, d) => { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+      )
+      .on("click", (event, d) => { window.location.href = `/members/${d.id}/`; });
+
+    node.append("circle")
+      .attr("r", 26)
+      .attr("fill", "#ede9fe")
+      .attr("stroke", "#7c3aed")
+      .attr("stroke-width", 2);
+
+    node.append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("font-size", 11)
+      .text((d) => `${d.first_name} ${d.last_name || ""}`.trim().slice(0, 14));
+
+    sim.on("tick", () => {
+      link
+        .attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y)
+        .attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
+      node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

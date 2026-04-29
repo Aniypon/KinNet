@@ -1,0 +1,114 @@
+version: "3.9"
+
+x-app-env: &app-env
+  DJANGO_SETTINGS_MODULE: family_circle.settings
+  DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
+  DJANGO_SECRET_KEY: "${DJANGO_SECRET_KEY:-dev-only-change-me}"
+  DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-*}"
+  DATABASE_URL: "postgres://kinnet:kinnet@db:5432/kinnet"
+  REDIS_URL: "redis://redis:6379/0"
+  CELERY_BROKER_URL: "redis://redis:6379/1"
+  CELERY_RESULT_BACKEND: "redis://redis:6379/2"
+  TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+  TELEGRAM_WEBHOOK_URL: "${TELEGRAM_WEBHOOK_URL:-}"
+  TELEGRAM_WEBHOOK_SECRET: "${TELEGRAM_WEBHOOK_SECRET:-}"
+  SITE_URL: "${SITE_URL:-http://localhost:8080}"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kinnet
+      POSTGRES_USER: kinnet
+      POSTGRES_PASSWORD: kinnet
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kinnet", "-d", "kinnet"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - mediadata:/app/media
+      - staticdata:/app/staticfiles
+    expose:
+      - "8000"
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["worker"]
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - mediadata:/app/media
+
+  beat:
+    build: .
+    restart: unless-stopped
+    command: ["beat"]
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  bot:
+    build: .
+    restart: unless-stopped
+    command: ["bot"]
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - mediadata:/var/www/media:ro
+      - staticdata:/var/www/static:ro
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  redisdata:
+  mediadata:
+  staticdata:

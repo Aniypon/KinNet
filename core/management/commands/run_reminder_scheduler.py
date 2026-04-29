@@ -1,17 +1,21 @@
-import os
-import time
-from django.core.management import call_command
+"""Legacy command preserved for backwards compatibility.
+
+The new platform schedules reminders via Celery Beat (see
+``family_circle/celery.py``). This command runs the daily-reminder task
+synchronously once and exits, which is helpful in cron-only environments
+that cannot run Celery.
+"""
+
+from __future__ import annotations
+
 from django.core.management.base import BaseCommand
-from dotenv import load_dotenv
 
 
 class Command(BaseCommand):
-    help = "Run reminders scheduler in a loop."
+    help = "Run the daily reminders task once (sync). Prefer Celery Beat in production."
 
     def handle(self, *args, **options):
-        load_dotenv()
-        interval = int(os.getenv("REMINDER_INTERVAL_SECONDS", "86400"))
-        self.stdout.write(self.style.SUCCESS(f"Scheduler started, interval={interval}s"))
-        while True:
-            call_command("send_reminders")
-            time.sleep(interval)
+        from core.tasks import send_daily_reminders
+
+        sent = send_daily_reminders()
+        self.stdout.write(self.style.SUCCESS(f"Sent reminders to {sent} users."))

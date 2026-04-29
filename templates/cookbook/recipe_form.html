@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Новый рецепт{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Новый рецепт</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label>Семья</label>
+    <select name="family" required>
+      {% for family in families %}<option value="{{ family.id }}">{{ family.name }}</option>{% endfor %}
+    </select>
+    <label>Название</label><input name="title" required>
+    <label>Описание</label><textarea name="description" rows="3"></textarea>
+    <label>Инструкция</label><textarea name="instructions" rows="6"></textarea>
+    <div class="split">
+      <div><label>Время (мин)</label><input name="cook_time_minutes" type="number" value="30"></div>
+      <div><label>Порций</label><input name="servings" type="number" value="2"></div>
+    </div>
+    <label>Теги (через запятую)</label><input name="tags" placeholder="ужин, быстрое">
+    <label>Ингредиенты (по строке: <em>имя | количество | единица</em>)</label>
+    <textarea name="ingredients" rows="6" placeholder="Картошка | 4 | шт&#10;Соль | 1 | ч.л."></textarea>
+    <button class="btn" type="submit">Сохранить</button>
+  </form>
+</section>
+{% endblock %}

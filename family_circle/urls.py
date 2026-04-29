@@ -1,28 +1,49 @@
-"""
-URL configuration for family_circle project.
+"""Top-level URL configuration."""
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
+
+from apps.api.api import api as ninja_api
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('accounts/', include('django.contrib.auth.urls')),
-    path('', include('core.urls')),
+    path("admin/", admin.site.urls),
+    path("accounts/", include("django.contrib.auth.urls")),
+    path("api/", ninja_api.urls),
+    # PWA
+    path(
+        "manifest.webmanifest",
+        TemplateView.as_view(
+            template_name="pwa/manifest.webmanifest",
+            content_type="application/manifest+json",
+        ),
+        name="pwa_manifest",
+    ),
+    path(
+        "sw.js",
+        TemplateView.as_view(
+            template_name="pwa/sw.js",
+            content_type="application/javascript",
+        ),
+        name="pwa_service_worker",
+    ),
+    path(
+        "offline/",
+        TemplateView.as_view(template_name="pwa/offline.html"),
+        name="pwa_offline",
+    ),
+    # New product apps
+    path("cookbook/", include("apps.cookbook.urls")),
+    path("capsule/", include("apps.timecapsule.urls")),
+    path("health/", include("apps.health.urls")),
+    path("budget/", include("apps.budget.urls")),
+    path("polls/", include("apps.polls.urls")),
+    path("calendar/", include("apps.calendar_sync.urls")),
+    path("badges/", include("apps.gamification.urls")),
+    # Legacy domain (members/families/events/tasks/goals/...)
+    path("", include("core.urls")),
 ]
 
 if settings.DEBUG:

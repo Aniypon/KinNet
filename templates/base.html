@@ -1,291 +1,128 @@
-<!doctype html>
-<html lang="ru">
+{% load static %}<!doctype html>
+<html lang="ru" data-theme="{{ ui_theme|default:'light' }}">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Семейный круг{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>{% block title %}KinNet — Семейная сеть{% endblock %}</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon-192.svg' %}" />
+    <link rel="apple-touch-icon" href="{% static 'icons/icon-192.svg' %}" />
+
+    <!-- Tailwind utilities (CDN — kept zero-build for now). -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js for tiny reactive widgets. -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- HTMX for SPA-like fragments. -->
+    <script defer src="https://unpkg.com/htmx.org@2.0.2"></script>
+    <!-- Walkthrough tour. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shepherd.js@11/dist/css/shepherd.css" />
+    <script src="https://cdn.jsdelivr.net/npm/shepherd.js@11/dist/js/shepherd.min.js" defer></script>
+
+    <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+
     <style>
-      :root {
-        color-scheme: light;
-        --bg: #f7f7fb;
-        --card: #ffffff;
-        --text: #1f2937;
-        --muted: #6b7280;
-        --accent: #7c3aed;
-      }
-      body {
-        margin: 0;
-        font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        animation: pageFade 0.35s ease-in;
-      }
-      .container {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 32px 20px 60px;
-      }
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-      }
-      .logo {
-        font-weight: 700;
-        font-size: 14px;
-        background: #ede9fe;
-        color: #5b21b6;
-        padding: 6px 12px;
-        border-radius: 999px;
-        display: inline-block;
-      }
-      .grid {
-        display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      }
-      .nav {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-top: 12px;
-      }
-      .nav a {
-        text-decoration: none;
-        color: var(--text);
-        background: #f3f4f6;
-        padding: 8px 12px;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 14px;
-      }
-      .nav a:hover {
-        background: #e5e7eb;
-      }
-      .actions {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-      }
-      .btn {
-        background: var(--accent);
-        color: white;
-        border: none;
-        padding: 8px 14px;
-        border-radius: 10px;
-        font-weight: 600;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-block;
-        transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
-      }
-      .btn.secondary {
-        background: #e5e7eb;
-        color: var(--text);
-      }
-      .btn:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 16px rgba(31, 41, 55, 0.12);
-      }
-      .btn:active {
-        transform: translateY(0);
-      }
-      .btn.small {
-        padding: 6px 10px;
-        font-size: 12px;
-        border-radius: 999px;
-      }
-      form {
-        display: grid;
-        gap: 10px;
-      }
-      form p {
-        margin: 0 0 12px;
-      }
-      input,
-      select,
-      textarea {
-        width: 100%;
-        padding: 10px 12px;
-        border-radius: 10px;
-        border: 1px solid #e5e7eb;
-        font: inherit;
-        background: white;
-        box-sizing: border-box;
-      }
-      label {
-        font-weight: 600;
-        font-size: 14px;
-        display: block;
-        margin-bottom: 6px;
-        word-break: break-word;
-      }
-      .card,
-      h1,
-      h2,
-      h3,
-      p,
-      li {
-        word-break: break-word;
-        overflow-wrap: anywhere;
-      }
-      .split {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-      }
-      .meta {
-        color: var(--muted);
-        font-size: 13px;
-      }
-      .card {
-        background: var(--card);
-        border-radius: 16px;
-        padding: 20px;
-        box-shadow: 0 6px 24px rgba(31, 41, 55, 0.08);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        animation: cardFadeUp 0.35s ease both;
-      }
-      .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 28px rgba(31, 41, 55, 0.12);
-      }
-      .badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 700;
-        background: #eef2ff;
-        color: #4338ca;
-      }
-      .badge.todo {
-        background: #fef3c7;
-        color: #92400e;
-      }
-      .badge.in_progress {
-        background: #dbeafe;
-        color: #1d4ed8;
-      }
-      .badge.done {
-        background: #dcfce7;
-        color: #166534;
-      }
-      .badge.birthday {
-        background: #fee2e2;
-        color: #991b1b;
-      }
-      .badge.holiday {
-        background: #e0f2fe;
-        color: #075985;
-      }
-      .badge.family {
-        background: #ede9fe;
-        color: #5b21b6;
-      }
-      .badge.other {
-        background: #f3f4f6;
-        color: #374151;
-      }
-      .filters {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: center;
-        margin-top: 10px;
-      }
-      .avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        overflow: hidden;
-        background: #e5e7eb;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        color: #374151;
-        flex-shrink: 0;
-      }
-      .avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-      .card-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .card-actions {
-        margin-top: 10px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-      }
-      p {
-        margin: 0 0 12px;
-        color: var(--muted);
-      }
-      ul {
-        margin: 8px 0 0 18px;
-        color: var(--muted);
-      }
-      @keyframes pageFade {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-      @keyframes cardFadeUp {
-        from {
-          opacity: 0;
-          transform: translateY(8px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
+      /* legacy class compatibility — preserved from the original base.html so
+         existing pages render identically. New pages use Tailwind utilities. */
+      .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 120px; }
+      header.kinnet-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; gap:12px; flex-wrap:wrap; }
+      .logo { font-weight: 700; font-size: 14px; background: var(--accent-soft); color: var(--accent); padding: 6px 12px; border-radius: 999px; display: inline-block; }
+      .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+      .nav { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+      .nav a { text-decoration: none; color: var(--text); background: var(--accent-soft); padding: 8px 12px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+      .nav a:hover { filter: brightness(0.95); }
+      .actions { display: flex; gap: 10px; align-items: center; }
+      .btn.small { padding: 6px 10px; font-size: 12px; border-radius: 999px; }
+      form { display: grid; gap: 10px; }
+      form p { margin: 0 0 12px; }
+      input, select, textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #e5e7eb; font: inherit; background: white; box-sizing: border-box; }
+      label { font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; word-break: break-word; }
+      .meta { color: var(--muted); font-size: 13px; }
+      .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #eef2ff; color: #4338ca; }
+      .badge.todo { background: #fef3c7; color: #92400e; }
+      .badge.in_progress { background: #dbeafe; color: #1d4ed8; }
+      .badge.done { background: #dcfce7; color: #166534; }
+      .badge.birthday { background: #fee2e2; color: #991b1b; }
+      .badge.holiday { background: #e0f2fe; color: #075985; }
+      .badge.family { background: #ede9fe; color: #5b21b6; }
+      .badge.other { background: #f3f4f6; color: #374151; }
+      .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+      .avatar { width: 48px; height: 48px; border-radius: 50%; overflow: hidden; background: #e5e7eb; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #374151; flex-shrink: 0; }
+      .avatar img { width: 100%; height: 100%; object-fit: cover; }
+      .card-row { display: flex; align-items: center; gap: 12px; }
+      .card-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      h1 { margin: 0 0 8px; font-size: 28px; }
+      p { margin: 0 0 12px; color: var(--muted); }
+      ul { margin: 8px 0 0 18px; color: var(--muted); }
     </style>
   </head>
   <body>
-    <div class="container">
-      <header>
-        <div>
-          <div class="logo">Семейный круг</div>
-          <nav class="nav">
-            <a href="/">Главная</a>
-            <a href="/families/">Семьи</a>
-            <a href="/members/">Родственники</a>
-            <a href="/events/">События</a>
-            <a href="/tasks/">Задачи</a>
-            <a href="/goals/">Цели</a>
-            <a href="/album/">Альбом</a>
-            <a href="/messages/">Сообщения</a>
-          </nav>
-        </div>
-        <div class="actions">
-          {% if request.user.is_authenticated %}
-            <a class="meta" href="/profile/">{{ request.user.get_full_name|default:request.user.username }}</a>
-            <form method="post" action="/accounts/logout/" style="margin: 0;">
+    <div id="kinnet-root" data-onboarding="{% if request.user.is_authenticated and not request.session.kinnet_onboarded %}1{% else %}0{% endif %}">
+      <div class="container">
+        <header class="kinnet-header">
+          <div>
+            <div class="logo">KinNet · Семейная сеть</div>
+            <nav class="nav" aria-label="Главное меню">
+              <a href="/">Главная</a>
+              <a href="/families/">Семьи</a>
+              <a href="/members/">Родственники</a>
+              <a href="/family-tree/graph/">Древо</a>
+              <a href="/events/">События</a>
+              <a href="/tasks/">Задачи</a>
+              <a href="/cookbook/">Рецепты</a>
+              <a href="/budget/">Бюджет</a>
+              <a href="/budget/wishlists/">Вишлисты</a>
+              <a href="/health/">Здоровье</a>
+              <a href="/capsule/">Капсулы</a>
+              <a href="/polls/">Опросы</a>
+              <a href="/calendar/">Календарь</a>
+              <a href="/badges/">Достижения</a>
+            </nav>
+          </div>
+          <div class="actions">
+            <form method="post" action="{% url 'ui_set_pref' %}" data-tour="elder" style="margin:0;">
               {% csrf_token %}
-              <button class="btn secondary" type="submit">Выйти</button>
+              <input type="hidden" name="elder" value="{% if ui_elder_mode %}0{% else %}1{% endif %}" />
+              <button class="btn secondary small" type="submit" title="Режим для старшего поколения">
+                {% if ui_elder_mode %}A 👁{% else %}A+ 👁{% endif %}
+              </button>
             </form>
-          {% else %}
-            <a class="btn secondary" href="/accounts/login/">Войти</a>
-            <a class="btn" href="/signup/">Регистрация</a>
-          {% endif %}
-        </div>
-      </header>
-      {% block content %}{% endblock %}
+            <form method="post" action="{% url 'ui_set_pref' %}" style="margin:0;">
+              {% csrf_token %}
+              <input type="hidden" name="theme" value="{% if ui_theme == 'dark' %}light{% else %}dark{% endif %}" />
+              <button class="btn secondary small" type="submit" title="Тёмная тема">
+                {% if ui_theme == 'dark' %}☀{% else %}🌙{% endif %}
+              </button>
+            </form>
+            {% if request.user.is_authenticated %}
+              <a class="meta" href="/profile/">{{ request.user.get_full_name|default:request.user.username }}</a>
+              <form method="post" action="/accounts/logout/" style="margin: 0;">
+                {% csrf_token %}
+                <button class="btn secondary" type="submit">Выйти</button>
+              </form>
+            {% else %}
+              <a class="btn secondary" href="/accounts/login/">Войти</a>
+              <a class="btn" href="/signup/">Регистрация</a>
+            {% endif %}
+          </div>
+        </header>
+
+        {% block content %}{% endblock %}
+      </div>
+
+      {% if request.user.is_authenticated %}
+      <nav class="bottom-nav" aria-label="Быстрая навигация">
+        <a href="/" {% if request.path == '/' %}class="active"{% endif %}><span class="icon">🏠</span><span>Сегодня</span></a>
+        <a href="/tasks/" {% if '/tasks' in request.path %}class="active"{% endif %}><span class="icon">✅</span><span>Задачи</span></a>
+        <a href="/cookbook/shopping/" {% if '/cookbook/shopping' in request.path %}class="active"{% endif %}><span class="icon">🛒</span><span>Покупки</span></a>
+        <a href="/events/" {% if '/events' in request.path %}class="active"{% endif %}><span class="icon">🎉</span><span>События</span></a>
+        <a href="/badges/" {% if '/badges' in request.path %}class="active"{% endif %}><span class="icon">🏅</span><span>Бейджи</span></a>
+      </nav>
+      {% endif %}
     </div>
+
+    <script src="{% static 'js/app.js' %}"></script>
   </body>
 </html>

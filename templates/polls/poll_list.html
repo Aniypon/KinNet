@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Опросы{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Опросы и голосования</h1>
+  <p>«Куда поедем в отпуск?», «Что подарим бабушке?» — быстрое принятие решений.</p>
+  <a class="btn" href="{% url 'polls:poll_create' %}">+ Опрос</a>
+</section>
+<div class="grid" style="margin-top:16px;">
+  {% for poll in polls %}
+    <a class="card" href="{% url 'polls:poll_detail' poll.id %}" style="text-decoration:none;color:inherit;">
+      <h3>{{ poll.question }}</h3>
+      <p class="meta">{{ poll.family.name }} · {% if poll.is_closed %}Закрыт{% else %}Открыт{% endif %}</p>
+    </a>
+  {% empty %}<p>Опросов нет.</p>{% endfor %}
+</div>
+{% endblock %}

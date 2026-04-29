@@ -1,0 +1,31 @@
+{
+  "name": "KinNet — Семейная сеть",
+  "short_name": "KinNet",
+  "description": "Платформа для управления жизнью семьи: события, задачи, рецепты, бюджет, здоровье.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f7fb",
+  "theme_color": "#7c3aed",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Список покупок", "url": "/cookbook/shopping/", "short_name": "Покупки" },
+    { "name": "Задачи", "url": "/tasks/", "short_name": "Задачи" },
+    { "name": "Сегодня", "url": "/", "short_name": "Сегодня" }
+  ]
+}

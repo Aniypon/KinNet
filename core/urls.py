@@ -1,5 +1,6 @@
 from django.urls import path
 
+from . import views as _v
 from .views import (
     events,
     families,
@@ -10,6 +11,7 @@ from .views import (
     family_edit,
     family_member_remove,
     family_tree,
+    family_tree_graph,
     family_tree_relations_update,
     family_tree_order_update,
     family_tree_edit,
@@ -53,6 +55,7 @@ urlpatterns = [
     path("users/suggest/", user_suggest, name="user_suggest"),
     path("members/", family_members, name="members"),
     path("family-tree/", family_tree, name="family_tree"),
+    path("family-tree/graph/", family_tree_graph, name="family_tree_graph"),
     path("family-tree/edit/", family_tree_edit, name="family_tree_edit"),
     path("family-tree/order/", family_tree_order_update, name="family_tree_order"),
     path("family-tree/relations/", family_tree_relations_update, name="family_tree_relations"),
@@ -73,4 +76,5 @@ urlpatterns = [
     path("album/", family_album, name="family_album"),
     path("messages/", messages, name="messages"),
     path("messages/<int:message_id>/delete/", message_delete, name="message_delete"),
+    path("profile/ui/", _v.ui_set_pref, name="ui_set_pref"),
 ]

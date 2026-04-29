@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Вишлисты{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Вишлисты</h1>
+  <p>Списки желаний — родственники могут «забронировать» подарок (бронь видна только им).</p>
+  <a class="btn" href="{% url 'budget:wishlist_create' %}">+ Вишлист</a>
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for wl in wishlists %}
+    <div class="card">
+      <h3>{{ wl.title }}</h3>
+      <p class="meta">{{ wl.family.name }} · {{ wl.owner_member }}</p>
+      <ul>
+        {% for item in wl.items.all %}
+          <li>
+            <strong>{{ item.title }}</strong>
+            {% if item.price_estimate %}<span class="meta">≈ {{ item.price_estimate }}</span>{% endif %}
+            {% if item.url %}· <a href="{{ item.url }}" target="_blank" rel="noopener">ссылка</a>{% endif %}
+            {% if item.is_reserved %}
+              {% if item.reserved_by_id == request.user.id %}
+                <span class="badge done">Вы забронировали</span>
+              {% else %}
+                <span class="badge done">Забронировано</span>
+              {% endif %}
+            {% else %}
+              <form method="post" action="{% url 'budget:wishlist_item_reserve' item.id %}" style="display:inline">
+                {% csrf_token %}<button class="btn small" type="submit">Забронировать</button>
+              </form>
+            {% endif %}
+          </li>
+        {% empty %}<li class="meta">Пусто</li>{% endfor %}
+      </ul>
+      <form method="post" action="{% url 'budget:wishlist_item_add' wl.id %}" style="margin-top:8px;">
+        {% csrf_token %}
+        <input name="title" placeholder="Что подарить?" required>
+        <input name="price_estimate" type="number" step="0.01" placeholder="Цена">
+        <input name="url" placeholder="https://...">
+        <button class="btn small" type="submit">+ Добавить желание</button>
+      </form>
+    </div>
+  {% empty %}<p>Пока нет вишлистов.</p>{% endfor %}
+</div>
+{% endblock %}

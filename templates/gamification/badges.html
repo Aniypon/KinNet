@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Достижения{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Достижения</h1>
+  <p>Бейджи за активность в семье. Открыты по мере использования KinNet.</p>
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for ub in earned %}
+    <div class="card">
+      <h3>{{ ub.badge.emoji }} {{ ub.badge.title }}</h3>
+      <p>{{ ub.badge.description }}</p>
+      <p class="meta">Получено {{ ub.awarded_at|date:"d.m.Y" }}</p>
+    </div>
+  {% empty %}<p>Пока нет достижений. Создайте семью или закройте задачу!</p>{% endfor %}
+</div>
+{% endblock %}
