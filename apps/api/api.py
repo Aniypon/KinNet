@@ -44,7 +44,7 @@ class MemberOut(Schema):
     last_name: str
     middle_name: str
     relation: str
-    birth_date: date
+    birth_date: Optional[date]
     parent1_id: Optional[int]
     parent2_id: Optional[int]
     spouse_id: Optional[int]

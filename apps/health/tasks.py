@@ -27,7 +27,7 @@ def send_medication_reminders() -> int:
     ``(medication, time, day)`` via the cache.
     """
     from core.models import FamilyMembership
-    from core.tasks import _send_telegram
+    from core.tasks import _send_telegram, tg_escape
 
     from .models import Medication
 
@@ -64,7 +64,10 @@ def send_medication_reminders() -> int:
             dedup_key = f"med-reminder:{med.pk}:{raw}:{today.isoformat()}"
             if not cache.add(dedup_key, "1", _DEDUP_TTL_SECONDS):
                 continue
-            text = f"💊 Напоминание: {med.member} — {med.name} ({med.dosage}) в {raw}"
+            text = (
+                f"💊 Напоминание: {tg_escape(med.member)} — "
+                f"{tg_escape(med.name)} ({tg_escape(med.dosage)}) в {raw}"
+            )
             recipients = FamilyMembership.objects.filter(
                 family=med.member.family
             ).select_related("user__telegram_profile")

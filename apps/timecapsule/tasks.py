@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 @shared_task(name="apps.timecapsule.tasks.deliver_due_capsules")
 def deliver_due_capsules() -> int:
     """Mark scheduled capsules as delivered when their ``reveal_at`` is in the past."""
-    from core.tasks import _send_telegram
+    from core.tasks import _send_telegram, tg_escape
 
     from .models import Capsule
 
@@ -29,7 +29,9 @@ def deliver_due_capsules() -> int:
             if tg and tg.chat_id and tg.is_confirmed:
                 _send_telegram(
                     tg.chat_id,
-                    f"📦 Капсула времени раскрыта: <b>{capsule.title}</b>\n\n{capsule.message[:500]}",
+                    "📦 Капсула времени раскрыта: "
+                    f"<b>{tg_escape(capsule.title)}</b>\n\n"
+                    f"{tg_escape(capsule.message[:500])}",
                 )
         delivered += 1
     logger.info("delivered %s capsules", delivered)

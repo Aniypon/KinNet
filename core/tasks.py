@@ -6,6 +6,7 @@ command. Beat schedules them; the worker container executes them.
 
 from __future__ import annotations
 
+import html
 import logging
 from datetime import timedelta
 
@@ -16,6 +17,16 @@ from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+def tg_escape(value) -> str:
+    """Escape user-supplied text for Telegram ``parse_mode=HTML``.
+
+    Telegram rejects messages whose user-controlled portions contain unescaped
+    ``<``, ``>`` or ``&`` because they look like malformed HTML. Wrap any
+    dynamic value with this before interpolating it into a message.
+    """
+    return html.escape("" if value is None else str(value), quote=False)
 
 
 def _send_telegram(chat_id: int, text: str) -> None:
@@ -78,10 +89,13 @@ def send_daily_reminders() -> int:
 
         lines: list[str] = ["<b>Сегодня в KinNet:</b>"]
         for occ, event in sorted(upcoming_events, key=lambda pair: pair[0])[:6]:
-            lines.append(f"• {occ:%d.%m} — {event.title} ({event.family.name})")
+            lines.append(
+                f"• {occ:%d.%m} — {tg_escape(event.title)} "
+                f"({tg_escape(event.family.name)})"
+            )
         for task in due_tasks:
             due = f" до {task.due_date:%d.%m}" if task.due_date else ""
-            lines.append(f"• Задача: {task.title}{due}")
+            lines.append(f"• Задача: {tg_escape(task.title)}{due}")
         _send_telegram(profile.chat_id, "\n".join(lines))
         sent += 1
 
@@ -132,11 +146,13 @@ def send_weekly_digest() -> int:
         if upcoming_events:
             lines.append("\n<b>События:</b>")
             for occurrence, ev in upcoming_events:
-                lines.append(f"• {occurrence:%d.%m} {ev.title}")
+                lines.append(f"• {occurrence:%d.%m} {tg_escape(ev.title)}")
         if tasks:
             lines.append("\n<b>Задачи:</b>")
             for task in tasks:
-                lines.append(f"• {task.title} — до {task.due_date:%d.%m}")
+                lines.append(
+                    f"• {tg_escape(task.title)} — до {task.due_date:%d.%m}"
+                )
         _send_telegram(profile.chat_id, "\n".join(lines))
         sent += 1
     return sent
@@ -154,7 +170,9 @@ def notify_birthday(member_id: int) -> None:
     family_users = User.objects.filter(
         Q(family_memberships__family=member.family) | Q(families_created=member.family)
     ).distinct()
-    text = f"🎂 Сегодня день рождения у {member}! Не забудьте поздравить."
+    text = (
+        f"🎂 Сегодня день рождения у {tg_escape(member)}! Не забудьте поздравить."
+    )
     for user in family_users:
         tg = getattr(user, "telegram_profile", None)
         if tg and tg.chat_id and tg.is_confirmed:
