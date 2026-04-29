@@ -7,6 +7,8 @@ from django.db.models import Q
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.html import escape
+from django.views.decorators.http import require_POST
 
 from core.models import Family, Task
 
@@ -69,6 +71,7 @@ def recipe_detail(request, recipe_id: int):
 
 
 @login_required
+@require_POST
 def recipe_to_shopping_list(request, recipe_id: int):
     recipe = get_object_or_404(
         Recipe.objects.filter(family__in=_user_families(request.user)), pk=recipe_id
@@ -126,12 +129,13 @@ def shopping_item_toggle(request, item_id: int):
     item.is_done = not item.is_done
     item.save(update_fields=["is_done"])
     if request.headers.get("HX-Request"):
+        toggle_url = reverse("cookbook:shopping_item_toggle", args=[item.id])
         return HttpResponse(
             f'<li data-id="{item.id}" class="{"done" if item.is_done else ""}">'
-            f'<input type="checkbox" hx-post="{reverse("cookbook:shopping_item_toggle", args=[item.id])}" '
+            f'<input type="checkbox" hx-post="{toggle_url}" '
             f'hx-target="closest li" hx-swap="outerHTML" '
-            f'{"checked" if item.is_done else ""}> {item.name} '
-            f'<span class="meta">{item.quantity}</span></li>'
+            f'{"checked" if item.is_done else ""}> {escape(item.name)} '
+            f'<span class="meta">{escape(item.quantity)}</span></li>'
         )
     return HttpResponseRedirect(
         reverse("cookbook:shopping_list_detail", args=[item.shopping_list_id])

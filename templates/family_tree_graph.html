@@ -23,7 +23,7 @@
 
 {% if current_family %}
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-<script id="members-data" type="application/json">{{ members_json|safe }}</script>
+{{ members_data|json_script:"members-data" }}
 <script>
   (function () {
     const data = JSON.parse(document.getElementById("members-data").textContent || "[]");

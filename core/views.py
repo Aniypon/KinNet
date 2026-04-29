@@ -1235,12 +1235,18 @@ def family_tree_graph(request):
 				"spouse_id",
 			)
 		)
+	# Birth dates need to be JSON-serializable; ``json_script`` (used in the
+	# template) handles HTML escaping for us — including stray ``</script>``
+	# fragments embedded in user-controlled names.
+	for member in members:
+		if member.get("birth_date") is not None:
+			member["birth_date"] = str(member["birth_date"])
 	return render(
 		request,
 		"family_tree_graph.html",
 		{
 			"families": families_qs,
 			"current_family": family,
-			"members_json": json.dumps(members, default=str, ensure_ascii=False),
+			"members_data": members,
 		},
 	)
