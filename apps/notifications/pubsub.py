@@ -27,11 +27,17 @@ def _channel(user_id: int) -> str:
 def _client():
     global _redis_client
     if _redis_client is not None:
-        return _redis_client
+        # Проверяем живость соединения; при обрыве сбрасываем синглтон
+        try:
+            _redis_client.ping()
+            return _redis_client
+        except Exception:
+            _redis_client = None
+
     with _redis_lock:
         if _redis_client is not None:
             return _redis_client
-        if not settings.REDIS_URL:
+        if not getattr(settings, "REDIS_URL", None):
             return None
         try:
             import redis  # type: ignore
@@ -75,6 +81,7 @@ def subscribe(user_id: int, timeout: float = 25.0) -> Iterator[dict]:
                 continue
     finally:
         try:
+            pubsub.unsubscribe()
             pubsub.close()
         except Exception:  # noqa: BLE001
             pass

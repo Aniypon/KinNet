@@ -43,14 +43,13 @@ def _apply_contributions(expense, mode: str, rows: list[tuple[int, Decimal]]):
         .distinct()
         .values_list("id", flat=True)
     )
-    for uid, amount in rows:
-        if uid not in valid_ids or amount <= 0:
-            continue
-        ExpenseContribution.objects.create(
-            expense=expense,
-            contributor_id=uid,
-            amount=amount,
-        )
+    objs = [
+        ExpenseContribution(expense=expense, contributor_id=uid, amount=amount)
+        for uid, amount in rows
+        if uid in valid_ids and amount > 0
+    ]
+    if objs:
+        ExpenseContribution.objects.bulk_create(objs)
 
 
 def _parse_contribution_rows(request) -> list[tuple[int, Decimal]]:
@@ -97,17 +96,20 @@ def _can_manage_wishlist(user, wishlist):
 
 
 def _current_user_member(family, user):
-    membership = family.memberships.filter(user=user).first()
-    member, _ = FamilyMember.objects.get_or_create(
-        family=family,
-        user=user,
-        defaults={
-            "first_name": user.first_name or user.username,
-            "last_name": user.last_name,
-            "relation": "Участник",
-            "display_order": membership.display_order if membership else family.family_members.count(),
-        },
-    )
+    """Найти или создать FamilyMember для пользователя. Вызывать только при записи."""
+    from django.db import transaction
+    with transaction.atomic():
+        membership = family.memberships.select_for_update().filter(user=user).first()
+        member, _ = FamilyMember.objects.get_or_create(
+            family=family,
+            user=user,
+            defaults={
+                "first_name": user.first_name or user.username,
+                "last_name": user.last_name,
+                "relation": "Участник",
+                "display_order": membership.display_order if membership else family.family_members.count(),
+            },
+        )
     return member
 
 
@@ -212,14 +214,9 @@ def expense_list(request):
         )
     top_category = by_category[0]["label"] if by_category else None
 
-    # "Кто платил": combine single-payer expenses (no contributions) with per-contributor amounts.
-    period_ids = list(period_qs.values_list("id", flat=True))
-    expenses_with_contribs = set(
-        ExpenseContribution.objects.filter(expense_id__in=period_ids)
-        .values_list("expense_id", flat=True)
-        .distinct()
-    )
-    single_qs = period_qs.exclude(id__in=expenses_with_contribs).filter(payer__isnull=False)
+    # "Кто платил": совмещаем единственного плательщика и взносы участников.
+    with_contribs_subq = ExpenseContribution.objects.filter(expense__in=period_qs).values("expense_id")
+    single_qs = period_qs.exclude(id__in=with_contribs_subq).filter(payer__isnull=False)
     payers_map: dict[int, dict] = {}
     for row in single_qs.values(
         "payer_id", "payer__first_name", "payer__last_name", "payer__username"
@@ -233,7 +230,7 @@ def expense_list(request):
         }
     contrib_rows = (
         ExpenseContribution.objects.filter(
-            expense_id__in=period_ids, contributor__isnull=False
+            expense__in=period_qs, contributor__isnull=False
         )
         .values(
             "contributor_id",
@@ -320,6 +317,8 @@ def expense_create(request):
             amount = Decimal(request.POST.get("amount", "0"))
         except InvalidOperation:
             amount = Decimal("0")
+        if amount <= 0:
+            amount = Decimal("0")
         with transaction.atomic():
             expense = Expense.objects.create(
                 family=family,
@@ -401,10 +400,11 @@ def expense_delete(request, expense_id: int):
         Expense.objects.filter(family__in=_user_families(request.user)),
         pk=expense_id,
     )
-    if request.method == "POST":
-        expense.delete()
-        if request.headers.get("HX-Request"):
-            return HttpResponse("")
+    if request.method != "POST":
+        return render(request, "budget/confirm_delete.html", {"object": expense, "family": expense.family})
+    expense.delete()
+    if request.headers.get("HX-Request"):
+        return HttpResponse("")
     return redirect(_family_url("budget:expense_list", expense.family))
 
 
@@ -415,6 +415,9 @@ def expense_contribution_add(request, expense_id: int):
         pk=expense_id,
     )
     if request.method == "POST":
+        # Проверяем, что вносящий является участником семьи
+        if not _user_families(request.user).filter(id=expense.family_id).exists():
+            return HttpResponseForbidden("Недостаточно прав.")
         try:
             amount = Decimal(request.POST.get("amount", "0"))
         except InvalidOperation:
@@ -440,7 +443,7 @@ def wishlist_index(request):
         .prefetch_related("items")
     )
     members = family.family_members.filter(wishlists__isnull=False).distinct()
-    my_member = _current_user_member(family, request.user)
+    my_member = FamilyMember.objects.filter(family=family, user=request.user).first()
     wish_member = request.GET.get("wish_member", "")
     wish_query = request.GET.get("wish_q", "").strip()
     if wish_member and str(wish_member).isdigit():
@@ -452,9 +455,10 @@ def wishlist_index(request):
             | Q(title__icontains=wish_query)
         )
     wishlists = list(wishlists)
+    my_member_id = my_member.id if my_member else None
     for wishlist in wishlists:
         wishlist.can_manage = _can_manage_wishlist(request.user, wishlist)
-        wishlist.is_mine = wishlist.owner_member_id == my_member.id
+        wishlist.is_mine = my_member_id is not None and wishlist.owner_member_id == my_member_id
     return render(
         request,
         "budget/wishlist_index.html",
@@ -532,7 +536,7 @@ def wishlist_item_add(request, wishlist_id: int):
         except InvalidOperation:
             price = None
         raw_url = request.POST.get("url", "").strip()
-        safe_url = raw_url if raw_url.startswith(("https://", "http://")) else ""
+        safe_url = raw_url if raw_url.startswith("https://") else ""
         item = WishlistItem.objects.create(
             wishlist=wishlist,
             title=request.POST.get("title", "Желание"),
@@ -546,25 +550,34 @@ def wishlist_item_add(request, wishlist_id: int):
 
 @login_required
 def wishlist_item_reserve(request, item_id: int):
-    item = get_object_or_404(
-        WishlistItem.objects.filter(
-            wishlist__family__in=_user_families(request.user)
-        ),
-        pk=item_id,
-    )
     if request.method != "POST":
+        item = get_object_or_404(
+            WishlistItem.objects.select_related("wishlist__family"),
+            pk=item_id,
+            wishlist__family__in=_user_families(request.user),
+        )
         return redirect(_family_url("budget:wishlist_index", item.wishlist.family))
-    if _can_manage_wishlist(request.user, item.wishlist):
-        return HttpResponseForbidden("Нельзя бронировать собственные желания.")
-    if item.reserved_by_id and item.reserved_by_id != request.user.id:
-        return redirect(_family_url("budget:wishlist_index", item.wishlist.family))
-    if item.reserved_by_id == request.user.id:
-        item.reserved_by = None
-        item.reserved_at = None
-    else:
-        item.reserved_by = request.user
-        item.reserved_at = timezone.now()
-    item.save(update_fields=["reserved_by", "reserved_at"])
+
+    from django.db import transaction
+    with transaction.atomic():
+        item = get_object_or_404(
+            WishlistItem.objects.select_related("wishlist__owner_member")
+            .select_for_update()
+            .filter(wishlist__family__in=_user_families(request.user)),
+            pk=item_id,
+        )
+        if _can_manage_wishlist(request.user, item.wishlist):
+            return HttpResponseForbidden("Нельзя бронировать собственные желания.")
+        # Уже забронировано другим — молча пропускаем
+        if item.reserved_by_id and item.reserved_by_id != request.user.id:
+            return redirect(_family_url("budget:wishlist_index", item.wishlist.family))
+        if item.reserved_by_id == request.user.id:
+            item.reserved_by = None
+            item.reserved_at = None
+        else:
+            item.reserved_by = request.user
+            item.reserved_at = timezone.now()
+        item.save(update_fields=["reserved_by", "reserved_at"])
     return redirect(_family_url("budget:wishlist_index", item.wishlist.family))
 
 
@@ -582,7 +595,7 @@ def wishlist_item_update(request, item_id: int):
         item.title = request.POST.get("title", "").strip() or item.title
         item.description = request.POST.get("description", "").strip()
         raw_url = request.POST.get("url", "").strip()
-        item.url = raw_url if raw_url.startswith(("https://", "http://")) else ""
+        item.url = raw_url if raw_url.startswith("https://") else ""
         try:
             item.price_estimate = Decimal(request.POST["price_estimate"]) if request.POST.get("price_estimate") else None
         except InvalidOperation:

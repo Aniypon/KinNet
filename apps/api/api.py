@@ -12,12 +12,13 @@ from typing import List, Literal, Optional
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from ninja import ModelSchema, NinjaAPI, Schema
+from ninja.errors import HttpError
 from ninja.security import django_auth
 
 from django.conf import settings
 
 from core.family_context import get_user_families as _user_families
-from core.models import Event, FamilyMember, Goal, Message, Task
+from core.models import Event, Family, FamilyMember, Goal, Message, Task
 
 from apps.notifications.models import Notification, PushSubscription
 
@@ -34,11 +35,10 @@ api = NinjaAPI(
 # ---------------------------------------------------------------------------
 # Schemas — ModelSchema auto-derives fields from the Django models.
 # ---------------------------------------------------------------------------
-class FamilyOut(Schema):
-    id: int
-    name: str
-    description: str
-    created_by_id: Optional[int]
+class FamilyOut(ModelSchema):
+    class Meta:
+        model = Family
+        fields = ["id", "name", "description", "created_by"]
 
 
 class MemberOut(ModelSchema):
@@ -109,7 +109,7 @@ def list_families(request):
 @api.get("/families/{family_id}/members", response=List[MemberOut])
 def list_members(request, family_id: int):
     family = get_object_or_404(_user_families(request.user), pk=family_id)
-    return list(FamilyMember.objects.filter(family=family))
+    return list(FamilyMember.objects.filter(family=family).select_related("parent1", "parent2", "spouse"))
 
 
 _TASK_STATUSES = {"todo", "in_progress", "done"}
@@ -120,7 +120,7 @@ def list_tasks(request, status: Optional[str] = None):
     qs = Task.objects.select_related("assignee").filter(family__in=_user_families(request.user))
     if status:
         if status not in _TASK_STATUSES:
-            return []
+            raise HttpError(400, f"status must be one of: {', '.join(_TASK_STATUSES)}")
         qs = qs.filter(status=status)
     return list(qs)
 
@@ -193,15 +193,16 @@ class NotificationOut(Schema):
 
 @api.get("/push/vapid", response=dict, auth=None)
 def push_vapid(request):
-    return {"public_key": settings.VAPID_PUBLIC_KEY}
+    return {"public_key": getattr(settings, "VAPID_PUBLIC_KEY", "")}
 
 
 @api.post("/push/subscribe", response=dict)
 def push_subscribe(request, payload: PushSubscriptionIn):
+    # Привязываем endpoint к текущему пользователю — предотвращает перехват чужих подписок
     sub, _ = PushSubscription.objects.update_or_create(
         endpoint=payload.endpoint,
+        user=request.user,
         defaults={
-            "user": request.user,
             "p256dh": payload.keys.p256dh,
             "auth": payload.keys.auth,
             "user_agent": (payload.user_agent or "")[:255],
@@ -223,11 +224,8 @@ def list_notifications(request, unread: bool = False, limit: int = 20):
     if unread:
         qs = qs.filter(is_read=False)
     return [
-        {
-            "id": n.id, "kind": n.kind, "title": n.title, "body": n.body,
-            "url": n.url, "is_read": n.is_read, "created_at": n.created_at.isoformat(),
-        }
-        for n in qs[:limit]
+        {**row, "created_at": row["created_at"].isoformat()}
+        for row in qs.values("id", "kind", "title", "body", "url", "is_read", "created_at")[:limit]
     ]
 
 

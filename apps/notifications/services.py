@@ -7,6 +7,7 @@ import logging
 from typing import Iterable
 
 from django.conf import settings
+from django.db import transaction
 
 from .models import Notification, PushSubscription
 from .pubsub import publish as pubsub_publish
@@ -39,13 +40,13 @@ def _push(subscription: PushSubscription, payload: dict) -> bool:
 
 
 def notify(user, *, title: str, body: str = "", url: str = "", kind: str = "system") -> Notification:
-    """Record in-app notification + attempt web push to all user subscriptions."""
-    note = Notification.objects.create(
-        user=user, kind=kind, title=title, body=body, url=url,
-    )
+    """Persist in-app notification, publish SSE, and attempt web push."""
+    with transaction.atomic():
+        note = Notification.objects.create(user=user, kind=kind, title=title, body=body, url=url)
     payload = {"title": title, "body": body, "url": url or "/", "kind": kind, "id": note.id}
     pubsub_publish(user.id, payload)
-    for sub in PushSubscription.objects.filter(user=user):
+    subs = list(PushSubscription.objects.filter(user=user))
+    for sub in subs:
         _push(sub, payload)
     return note
 
@@ -55,21 +56,27 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
     if not users:
         return 0
     user_ids = [u.id for u in users]
+    user_by_id = {u.id: u for u in users}
 
-    notes = Notification.objects.bulk_create([
-        Notification(user=u, kind=kind, title=title, body=body, url=url)
-        for u in users
-    ])
+    # bulk_create возвращает объекты с pk только на PostgreSQL; получаем pk явно
+    with transaction.atomic():
+        Notification.objects.bulk_create([
+            Notification(user=u, kind=kind, title=title, body=body, url=url)
+            for u in users
+        ])
+    notes = list(
+        Notification.objects.filter(user_id__in=user_ids, kind=kind, title=title)
+        .order_by("-id")[: len(users)]
+    )
 
-    # Publish SSE + collect subscriptions in a single query
     subs_by_user: dict[int, list] = {}
     for sub in PushSubscription.objects.filter(user_id__in=user_ids):
         subs_by_user.setdefault(sub.user_id, []).append(sub)
 
-    for note, user in zip(notes, users):
+    for note in notes:
         payload = {"title": title, "body": body, "url": url or "/", "kind": kind, "id": note.id}
-        pubsub_publish(user.id, payload)
-        for sub in subs_by_user.get(user.id, []):
+        pubsub_publish(note.user_id, payload)
+        for sub in subs_by_user.get(note.user_id, []):
             _push(sub, payload)
 
     return len(notes)

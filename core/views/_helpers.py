@@ -77,16 +77,20 @@ def chat_typing_key(family_id, user_id):
 
 def active_typers(family, request_user):
 	now = timezone.now().timestamp()
-	# Each user has an isolated key — no read-modify-write race on shared state.
-	members = family.memberships.values_list("user_id", flat=True)
-	active = []
-	for uid in members:
-		if uid == request_user.id:
-			continue
-		item = cache.get(chat_typing_key(family.id, uid))
-		if item and now - item.get("timestamp", 0) <= 6:
-			active.append(item["name"])
-	return active
+	# У каждого пользователя изолированный ключ — нет гонки на общем состоянии.
+	other_ids = [
+		uid for uid in family.memberships.values_list("user_id", flat=True)
+		if uid != request_user.id
+	]
+	if not other_ids:
+		return []
+	keys = {uid: chat_typing_key(family.id, uid) for uid in other_ids}
+	cached = cache.get_many(list(keys.values()))
+	return [
+		item["name"]
+		for uid, key in keys.items()
+		if (item := cached.get(key)) and now - item.get("timestamp", 0) <= 6
+	]
 
 
 def audit(family, actor, action, entity_type, summary, entity_id="", payload=None):
@@ -102,11 +106,21 @@ def audit(family, actor, action, entity_type, summary, entity_id="", payload=Non
 
 
 def sync_birthday_events(user, birth_date):
-	families = get_user_families(user)
-	if birth_date:
-		for family in families:
-			membership = get_membership(user, family)
-			member, _ = FamilyMember.objects.get_or_create(
+	from django.db import transaction
+
+	families = list(get_user_families(user).select_related())
+	if not birth_date:
+		Event.objects.filter(family__in=families, kind="birthday", member__user=user).delete()
+		return
+
+	memberships = {
+		m.family_id: m
+		for m in user.family_memberships.filter(family__in=families)
+	}
+	for family in families:
+		with transaction.atomic():
+			membership = memberships.get(family.id)
+			member, _ = FamilyMember.objects.select_for_update().get_or_create(
 				family=family,
 				user=user,
 				defaults={
@@ -117,7 +131,7 @@ def sync_birthday_events(user, birth_date):
 				},
 			)
 			title = f"День рождения {member}"
-			event, created = Event.objects.get_or_create(
+			event, created = Event.objects.select_for_update().get_or_create(
 				family=family,
 				member=member,
 				kind="birthday",
@@ -133,12 +147,6 @@ def sync_birthday_events(user, birth_date):
 					updates["recurrence"] = "yearly"
 				if updates:
 					Event.objects.filter(id=event.id).update(**updates)
-	else:
-		Event.objects.filter(
-			family__in=families,
-			kind="birthday",
-			member__user=user,
-		).delete()
 
 
 def build_tree_data(family, include_all=False):

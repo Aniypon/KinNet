@@ -21,11 +21,17 @@ def current_family(request):
     Writes back to session so context stays sticky across navigation.
     """
     families = get_user_families(request.user)
-    family_id = (
+    raw_id = (
         request.GET.get("family")
         or request.POST.get("family")
         or request.session.get("active_family_id")
     )
+    # Отклоняем нечисловые значения во избежание DB-ошибок
+    try:
+        family_id = int(raw_id) if raw_id else None
+    except (ValueError, TypeError):
+        family_id = None
+
     family = families.filter(id=family_id).first() if family_id else None
     if family is None:
         family = families.first()
@@ -38,7 +44,7 @@ def current_family(request):
 def require_family(roles=None):
     """Resolve active family, attach to request.family, optionally check role.
 
-    Raises PermissionDenied if no family or role missing.
+    Raises PermissionDenied if user not authenticated, no family, or role missing.
     Usage:
         @login_required
         @require_family()                       # any membership
@@ -49,6 +55,8 @@ def require_family(roles=None):
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                raise PermissionDenied
             family, families = current_family(request)
             if family is None:
                 raise PermissionDenied
