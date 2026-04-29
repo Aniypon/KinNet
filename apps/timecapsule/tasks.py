@@ -25,10 +25,10 @@ def deliver_due_capsules() -> int:
         capsule.delivered_at = now
         capsule.save(update_fields=["status", "delivered_at"])
         for user in capsule.recipients_users.all():
-            chat = getattr(getattr(user, "telegram_profile", None), "chat_id", None)
-            if chat:
+            tg = getattr(user, "telegram_profile", None)
+            if tg and tg.chat_id and tg.is_confirmed:
                 _send_telegram(
-                    chat,
+                    tg.chat_id,
                     f"📦 Капсула времени раскрыта: <b>{capsule.title}</b>\n\n{capsule.message[:500]}",
                 )
         delivered += 1

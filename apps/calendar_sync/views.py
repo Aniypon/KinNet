@@ -27,11 +27,14 @@ def _user_families(user):
 def _occurrences_for_year(event: Event, year: int) -> list[date]:
     """Birthdays repeat yearly; everything else is a single date."""
     if event.kind == "birthday":
-        try:
-            return [event.date.replace(year=year), event.date.replace(year=year + 1)]
-        except ValueError:
-            # Feb 29 fallback
-            return [date(year, event.date.month, 28), date(year + 1, event.date.month, 28)]
+        occurrences: list[date] = []
+        for y in (year, year + 1):
+            try:
+                occurrences.append(event.date.replace(year=y))
+            except ValueError:
+                # Feb 29 fallback for non-leap years; leap years keep Feb 29.
+                occurrences.append(date(y, event.date.month, 28))
+        return occurrences
     return [event.date]
 
 

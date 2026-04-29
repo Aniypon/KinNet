@@ -156,6 +156,6 @@ def notify_birthday(member_id: int) -> None:
     ).distinct()
     text = f"🎂 Сегодня день рождения у {member}! Не забудьте поздравить."
     for user in family_users:
-        chat = getattr(getattr(user, "telegram_profile", None), "chat_id", None)
-        if chat:
-            _send_telegram(chat, text)
+        tg = getattr(user, "telegram_profile", None)
+        if tg and tg.chat_id and tg.is_confirmed:
+            _send_telegram(tg.chat_id, text)

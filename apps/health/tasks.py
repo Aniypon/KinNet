@@ -6,6 +6,7 @@ import logging
 from datetime import time
 
 from celery import shared_task
+from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,14 @@ def send_medication_reminders() -> int:
     from .models import Medication
 
     now = timezone.localtime()
+    today = now.date()
     sent = 0
-    medications = Medication.objects.filter(is_active=True).select_related("member__family")
+    medications = (
+        Medication.objects.filter(is_active=True)
+        .filter(Q(starts_on__isnull=True) | Q(starts_on__lte=today))
+        .filter(Q(ends_on__isnull=True) | Q(ends_on__gte=today))
+        .select_related("member__family")
+    )
     for med in medications:
         if not med.times:
             continue
