@@ -32,18 +32,6 @@ def _ensure_profile(chat_id: int, username: str):
     return profile
 
 
-@sync_to_async
-def _create_pending_profile(chat_id: int, username: str):
-    """Create an unconfirmed profile placeholder so the user can finish via web."""
-    from core.models import TelegramProfile
-
-    profile, _ = TelegramProfile.objects.get_or_create(
-        chat_id=chat_id,
-        defaults={"username": username, "user_id": None},
-    )
-    return profile
-
-
 @router.message(CommandStart())
 async def on_start(message: Message) -> None:
     if message.chat is None:

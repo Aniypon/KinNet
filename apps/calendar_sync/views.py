@@ -83,7 +83,7 @@ def ics_feed(request, token: str):
         "PRODID:-//KinNet//Family Calendar//RU",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
-        f"X-WR-CALNAME:KinNet — {user.get_full_name() or user.username}",
+        f"X-WR-CALNAME:{_ics_escape('KinNet — ' + (user.get_full_name() or user.username))}",
     ]
     for event in events:
         for occurrence in _occurrences_for_year(event, year):

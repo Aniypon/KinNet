@@ -126,6 +126,8 @@ def wishlist_item_reserve(request, item_id: int):
         ),
         pk=item_id,
     )
+    if request.method != "POST":
+        return redirect("budget:wishlist_index")
     if item.reserved_by_id and item.reserved_by_id != request.user.id:
         return redirect("budget:wishlist_index")
     if item.reserved_by_id == request.user.id:
