@@ -14,7 +14,6 @@ from django.http import HttpRequest, StreamingHttpResponse
 
 from .pubsub import subscribe
 
-
 def _stream(user_id: int):
     yield "retry: 5000\n\n"
     yield "event: ready\ndata: {}\n\n"
@@ -23,7 +22,6 @@ def _stream(user_id: int):
             yield ": keepalive\n\n"
             continue
         yield f"event: notification\ndata: {json.dumps(payload)}\n\n"
-
 
 @login_required
 def sse(request: HttpRequest) -> StreamingHttpResponse:

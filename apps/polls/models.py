@@ -1,21 +1,13 @@
-"""Family polls/voting."""
-
 from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
 
+AUTH = settings.AUTH_USER_MODEL
 
 class Poll(models.Model):
-    family = models.ForeignKey(
-        "core.Family", on_delete=models.CASCADE, related_name="polls"
-    )
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="polls_authored",
-    )
+    family = models.ForeignKey("core.Family", on_delete=models.CASCADE, related_name="polls")
+    author = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, related_name="polls_authored")
     question = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     allow_multiple = models.BooleanField(default=False)
@@ -26,16 +18,13 @@ class Poll(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.question
 
     @property
-    def effectively_closed(self) -> bool:
+    def effectively_closed(self):
         from django.utils import timezone
-        if self.is_closed:
-            return True
-        return bool(self.closes_at and self.closes_at <= timezone.now())
-
+        return self.is_closed or bool(self.closes_at and self.closes_at <= timezone.now())
 
 class PollChoice(models.Model):
     poll = models.ForeignKey(Poll, on_delete=models.CASCADE, related_name="choices")
@@ -44,17 +33,12 @@ class PollChoice(models.Model):
     class Meta:
         ordering = ["pk"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.text
-
 
 class PollVote(models.Model):
     choice = models.ForeignKey(PollChoice, on_delete=models.CASCADE, related_name="votes")
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="poll_votes",
-    )
+    user = models.ForeignKey(AUTH, on_delete=models.CASCADE, related_name="poll_votes")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

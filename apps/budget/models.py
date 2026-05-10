@@ -1,21 +1,13 @@
-"""Family budget + collaborative wishlists with anonymous reservations."""
-
 from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
 
+AUTH = settings.AUTH_USER_MODEL
 
 class Expense(models.Model):
-    family = models.ForeignKey(
-        "core.Family", on_delete=models.CASCADE, related_name="expenses"
-    )
-    payer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="expenses_paid",
-    )
+    family = models.ForeignKey("core.Family", on_delete=models.CASCADE, related_name="expenses")
+    payer = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, related_name="expenses_paid")
     title = models.CharField(max_length=160)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     category = models.CharField(max_length=80, blank=True)
@@ -26,18 +18,12 @@ class Expense(models.Model):
     class Meta:
         ordering = ["-spent_on", "-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.title}: {self.amount}"
-
 
 class ExpenseContribution(models.Model):
     expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name="contributions")
-    contributor = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="budget_contributions",
-    )
+    contributor = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, related_name="budget_contributions")
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -45,32 +31,18 @@ class ExpenseContribution(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.contributor}: {self.amount}"
 
-
 class Wishlist(models.Model):
-    family = models.ForeignKey(
-        "core.Family", on_delete=models.CASCADE, related_name="wishlists"
-    )
-    owner_member = models.ForeignKey(
-        "core.FamilyMember",
-        on_delete=models.CASCADE,
-        related_name="wishlists",
-    )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="wishlists_created",
-    )
+    family = models.ForeignKey("core.Family", on_delete=models.CASCADE, related_name="wishlists")
+    owner_member = models.ForeignKey("core.FamilyMember", on_delete=models.CASCADE, related_name="wishlists")
+    created_by = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, blank=True, related_name="wishlists_created")
     title = models.CharField(max_length=160, default="Список желаний")
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.title} · {self.owner_member}"
-
 
 class WishlistItem(models.Model):
     wishlist = models.ForeignKey(Wishlist, on_delete=models.CASCADE, related_name="items")
@@ -79,18 +51,8 @@ class WishlistItem(models.Model):
     url = models.URLField(blank=True)
     price_estimate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     share_with_family = models.BooleanField(default=True)
-    shared_with_members = models.ManyToManyField(
-        "core.FamilyMember",
-        blank=True,
-        related_name="shared_wishlist_items",
-    )
-    reserved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="reserved_wishes",
-    )
+    shared_with_members = models.ManyToManyField("core.FamilyMember", blank=True, related_name="shared_wishlist_items")
+    reserved_by = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, blank=True, related_name="reserved_wishes")
     reserved_at = models.DateTimeField(null=True, blank=True)
     is_purchased = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -98,9 +60,9 @@ class WishlistItem(models.Model):
     class Meta:
         ordering = ["is_purchased", "-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.title
 
     @property
-    def is_reserved(self) -> bool:
+    def is_reserved(self):
         return self.reserved_by_id is not None

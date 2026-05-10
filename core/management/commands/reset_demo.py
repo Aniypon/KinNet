@@ -13,7 +13,6 @@ from core.models import (
     TaskContribution,
 )
 
-
 class Command(BaseCommand):
     help = "Delete all data and load demo dataset."
 
@@ -27,8 +26,6 @@ class Command(BaseCommand):
         FamilyMember.objects.all().delete()
         Task.objects.all().delete()
         Family.objects.all().delete()
-
         user_model = get_user_model()
         user_model.objects.exclude(is_superuser=True).delete()
-
         self.stdout.write(self.style.SUCCESS("All data removed. Now run seed_demo."))

@@ -10,7 +10,6 @@ from django.utils.safestring import mark_safe
 
 register = template.Library()
 
-
 @register.simple_tag
 def vite_asset(entry):
     dev_server = os.environ.get("VITE_DEV_SERVER")
@@ -25,13 +24,11 @@ def vite_asset(entry):
         )
 
     manifest_path = Path(settings.BASE_DIR) / "static" / "dist" / ".vite" / "manifest.json"
-    if not manifest_path.exists():
-        return mark_safe("")
+    if not manifest_path.exists(): return mark_safe("")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     asset = manifest.get(entry)
-    if not asset:
-        return mark_safe("")
+    if not asset: return mark_safe("")
 
     tags = []
     for css_file in asset.get("css", []):

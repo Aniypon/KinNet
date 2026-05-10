@@ -1,5 +1,3 @@
-"""ICS calendar feed generation."""
-
 from __future__ import annotations
 
 from calendar import monthrange
@@ -18,7 +16,6 @@ from core.models import Event, Family
 from .models import CalendarFeedToken
 
 User = get_user_model()
-
 
 def _occurrences_for_year(event: Event, year: int) -> list[date]:
     """Return concrete dates around the exported year for recurring events."""
@@ -60,7 +57,6 @@ def _occurrences_for_year(event: Event, year: int) -> list[date]:
         return occurrences
     return [event.date]
 
-
 def _ics_escape(text: str) -> str:
     return (
         text.replace("\\", "\\\\")
@@ -68,7 +64,6 @@ def _ics_escape(text: str) -> str:
         .replace(";", "\\;")
         .replace("\n", "\\n")
     )
-
 
 @login_required
 def feed_settings(request):
@@ -88,7 +83,6 @@ def feed_settings(request):
         {"token": token, "feed_url": feed_url},
     )
 
-
 def ics_feed(request, token: str):
     feed_token = get_object_or_404(CalendarFeedToken, token=token)
     user = feed_token.user
@@ -96,10 +90,8 @@ def ics_feed(request, token: str):
         Q(memberships__user=user) | Q(created_by=user)
     ).distinct()
     events = Event.objects.filter(family__in=families).select_related("family", "member")
-
     now = datetime.now(dt_timezone.utc)
     year = now.year
-
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -126,7 +118,6 @@ def ics_feed(request, token: str):
                 ]
             )
     lines.append("END:VCALENDAR")
-
     response = HttpResponse("\r\n".join(lines), content_type="text/calendar; charset=utf-8")
     response["Content-Disposition"] = 'inline; filename="kinnet.ics"'
     return response

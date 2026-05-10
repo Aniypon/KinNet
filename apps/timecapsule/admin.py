@@ -2,7 +2,6 @@ from django.contrib import admin
 
 from .models import Capsule
 
-
 @admin.register(Capsule)
 class CapsuleAdmin(admin.ModelAdmin):
     list_display = ("title", "family", "reveal_at", "status", "delivered_at")

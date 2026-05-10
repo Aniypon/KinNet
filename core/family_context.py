@@ -1,5 +1,3 @@
-"""Shared family resolution helper used by all app views."""
-
 from __future__ import annotations
 
 from functools import wraps
@@ -9,24 +7,16 @@ from django.db.models import Q
 
 from .models import Family
 
-
 def get_user_families(user):
     return Family.objects.filter(Q(memberships__user=user) | Q(created_by=user)).distinct()
 
-
 def current_family(request):
-    """Resolve and return (family, families) for the current request.
-
-    Priority: GET ?family= → POST family → session active_family_id → first.
-    Writes back to session so context stays sticky across navigation.
-    """
     families = get_user_families(request.user)
     raw_id = (
         request.GET.get("family")
         or request.POST.get("family")
         or request.session.get("active_family_id")
     )
-    # Отклоняем нечисловые значения во избежание DB-ошибок
     try:
         family_id = int(raw_id) if raw_id else None
     except (ValueError, TypeError):
@@ -40,16 +30,7 @@ def current_family(request):
         request.session.modified = True
     return family, families
 
-
 def require_family(roles=None):
-    """Resolve active family, attach to request.family, optionally check role.
-
-    Raises PermissionDenied if user not authenticated, no family, or role missing.
-    Usage:
-        @login_required
-        @require_family()                       # any membership
-        @require_family(roles=("owner","admin"))
-    """
     from .permissions import has_role
 
     def decorator(view_func):

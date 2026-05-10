@@ -1,5 +1,3 @@
-"""Celery tasks for medication reminders."""
-
 from __future__ import annotations
 
 import logging
@@ -15,11 +13,9 @@ logger = logging.getLogger(__name__)
 _REMINDER_WINDOW_MINUTES = 15
 _DEDUP_TTL_SECONDS = 18 * 60 * 60  # ample buffer past the next scheduled dose
 
-
 @shared_task(name="apps.health.tasks.send_medication_reminders")
 def send_medication_reminders() -> int:
     """Count due medication reminders when scheduled HH:MM matches now (±15 min).
-
     Beat runs every 30 minutes, so any HH:MM falls within the ±15-minute window
     of *exactly one* run in the common case — but boundary times (e.g. HH:15)
     sit equidistant between two runs. To keep coverage symmetric without
@@ -27,7 +23,6 @@ def send_medication_reminders() -> int:
     ``(medication, time, day)`` via the cache.
     """
     from .models import Medication
-
     now = timezone.localtime()
     today = now.date()
     sent = 0
@@ -39,7 +34,6 @@ def send_medication_reminders() -> int:
     )
     from apps.notifications.services import notify
     from core.models import FamilyMembership
-
     for med in medications:
         if not med.times:
             continue
@@ -59,8 +53,6 @@ def send_medication_reminders() -> int:
             delta_minutes = min(raw_delta, 1440 - raw_delta)
             if delta_minutes > _REMINDER_WINDOW_MINUTES:
                 continue
-            # Once-per-day lock so beat boundary times (e.g. 08:15 with runs at
-            # 08:00 and 08:30) still fire exactly once per day.
             dedup_key = f"med-reminder:{med.pk}:{raw}:{today.isoformat()}"
             if not cache.add(dedup_key, "1", _DEDUP_TTL_SECONDS):
                 continue

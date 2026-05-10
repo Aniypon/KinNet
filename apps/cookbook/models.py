@@ -1,21 +1,13 @@
-"""Cookbook domain: shared family recipes that can spawn shopping lists."""
-
 from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
 
+AUTH = settings.AUTH_USER_MODEL
 
 class Recipe(models.Model):
-    family = models.ForeignKey(
-        "core.Family", on_delete=models.CASCADE, related_name="recipes"
-    )
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="recipes",
-    )
+    family = models.ForeignKey("core.Family", on_delete=models.CASCADE, related_name="recipes")
+    author = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, related_name="recipes")
     title = models.CharField(max_length=160)
     description = models.TextField(blank=True)
     instructions = models.TextField(blank=True)
@@ -28,9 +20,8 @@ class Recipe(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.title
-
 
 class Ingredient(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, related_name="ingredients")
@@ -41,46 +32,29 @@ class Ingredient(models.Model):
     class Meta:
         ordering = ["pk"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.name} ({self.quantity} {self.unit})".strip()
 
-
 class ShoppingList(models.Model):
-    family = models.ForeignKey(
-        "core.Family", on_delete=models.CASCADE, related_name="shopping_lists"
-    )
+    family = models.ForeignKey("core.Family", on_delete=models.CASCADE, related_name="shopping_lists")
     name = models.CharField(max_length=120, default="Список покупок")
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name="shopping_lists",
-    )
+    created_by = models.ForeignKey(AUTH, on_delete=models.SET_NULL, null=True, related_name="shopping_lists")
     created_at = models.DateTimeField(auto_now_add=True)
-    linked_task = models.ForeignKey(
-        "core.Task",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="shopping_lists",
-    )
+    linked_task = models.ForeignKey("core.Task", on_delete=models.SET_NULL, null=True, blank=True, related_name="shopping_lists")
 
     class Meta:
         ordering = ["-created_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.name} · {self.family.name}"
 
     @property
-    def is_completed(self) -> bool:
+    def is_completed(self):
         items = list(self.items.all())
         return bool(items) and all(item.is_done for item in items)
 
-
 class ShoppingItem(models.Model):
-    shopping_list = models.ForeignKey(
-        ShoppingList, on_delete=models.CASCADE, related_name="items"
-    )
+    shopping_list = models.ForeignKey(ShoppingList, on_delete=models.CASCADE, related_name="items")
     name = models.CharField(max_length=120)
     quantity = models.CharField(max_length=60, blank=True)
     unit = models.CharField(max_length=30, blank=True)
@@ -89,5 +63,5 @@ class ShoppingItem(models.Model):
     class Meta:
         ordering = ["is_done", "pk"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.name

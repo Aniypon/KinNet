@@ -7,7 +7,6 @@ from core.permissions import has_role as _has_role
 
 register = template.Library()
 
-
 class RoleGateNode(template.Node):
     def __init__(self, roles, nodelist):
         self.roles = roles
@@ -18,17 +17,14 @@ class RoleGateNode(template.Node):
         family = context.get("active_family")
         if request is None or family is None:
             return ""
-        if not request.user.is_authenticated:
-            return ""
+        if not request.user.is_authenticated: return ""
         if _has_role(request.user, family, self.roles):
             return self.nodelist.render(context)
         return ""
 
-
 @register.tag("role_gate")
 def role_gate(parser, token):
     """Render inner block only when user has one of the given roles.
-
     Usage::
 
         {% role_gate "owner,admin" %}

@@ -1,5 +1,3 @@
-"""Signal-driven badge awards."""
-
 from __future__ import annotations
 
 from django.db.models.signals import post_save
@@ -9,21 +7,17 @@ from core.models import Family, Task
 
 from .services import award
 
-
 @receiver(post_save, sender=Family)
 def family_created(sender, instance, created, **kwargs):
     if created and instance.created_by_id:
         award(instance.created_by, "hearth_keeper")
 
-
 PLANNER_THRESHOLD = 10
-
 
 @receiver(post_save, sender=Task)
 def task_completed(sender, instance, created, **kwargs):
     if created or instance.status != "done" or not instance.assignee_id:
         return
-    # Пропускаем сохранения, которые не меняли статус
     update_fields = kwargs.get("update_fields")
     if update_fields is not None and "status" not in update_fields:
         return

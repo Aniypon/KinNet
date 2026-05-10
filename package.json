@@ -12,6 +12,9 @@
     "alpinejs": "^3.14.8",
     "htmx.org": "^2.0.4",
     "lucide": "^0.468.0",
+    "pptxgenjs": "^4.0.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.5",
     "shepherd.js": "^13.0.0"
   },
   "devDependencies": {

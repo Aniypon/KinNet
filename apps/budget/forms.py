@@ -7,7 +7,6 @@ from django.utils import timezone
 
 from .models import Expense, Wishlist
 
-
 class ExpenseForm(forms.ModelForm):
     spent_on = forms.DateField(
         required=False,
@@ -41,7 +40,6 @@ class ExpenseForm(forms.ModelForm):
         if amount is not None and amount <= 0:
             raise forms.ValidationError("Сумма должна быть больше нуля.")
         return amount
-
 
 class WishlistForm(forms.ModelForm):
     class Meta:

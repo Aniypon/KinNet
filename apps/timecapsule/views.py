@@ -1,5 +1,3 @@
-"""Time-capsule views."""
-
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
@@ -15,12 +13,10 @@ from core.utils import parse_local_datetime as _parse_local_datetime
 
 from .models import Capsule
 
-
 @login_required
 def capsule_list(request):
     family, families = _current_family(request)
-    if not family:
-        return redirect("families")
+    if not family: return redirect("families")
     now = timezone.now()
     Capsule.objects.filter(family=family, status="scheduled", reveal_at__lte=now).update(
         status="delivered",
@@ -38,12 +34,10 @@ def capsule_list(request):
         {"capsules": capsules, "family": family, "families": families},
     )
 
-
 @login_required
 def capsule_create(request):
     family, families = _current_family(request)
-    if not family:
-        return redirect("families")
+    if not family: return redirect("families")
     if not has_role(request.user, family, ("owner", "admin", "parent")):
         raise PermissionDenied
     if request.method == "POST":

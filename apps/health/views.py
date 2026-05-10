@@ -12,7 +12,6 @@ from core.permissions import has_role
 
 from .models import HealthRecord, Medication
 
-
 @login_required
 def health_index(request):
     families = _user_families(request.user)
@@ -22,7 +21,6 @@ def health_index(request):
         "health/index.html",
         {"members": members},
     )
-
 
 @login_required
 def record_edit(request, member_id: int):
@@ -50,7 +48,6 @@ def record_edit(request, member_id: int):
         "health/record_form.html",
         {"member": member, "record": record, "page_title": f"Карта здоровья — {member}"},
     )
-
 
 @login_required
 def medication_create(request, member_id: int):

@@ -14,10 +14,8 @@ from .pubsub import publish as pubsub_publish
 
 logger = logging.getLogger(__name__)
 
-
 def _push(subscription: PushSubscription, payload: dict) -> bool:
-    if not (settings.VAPID_PRIVATE_KEY and settings.VAPID_PUBLIC_KEY):
-        return False
+    if not (settings.VAPID_PRIVATE_KEY and settings.VAPID_PUBLIC_KEY): return False
     try:
         from pywebpush import WebPushException, webpush
     except ImportError:
@@ -38,9 +36,7 @@ def _push(subscription: PushSubscription, payload: dict) -> bool:
         logger.warning("webpush failed (%s): %s", status, exc)
         return False
 
-
 def notify(user, *, title: str, body: str = "", url: str = "", kind: str = "system") -> Notification:
-    """Persist in-app notification, publish SSE, and attempt web push."""
     with transaction.atomic():
         note = Notification.objects.create(user=user, kind=kind, title=title, body=body, url=url)
     payload = {"title": title, "body": body, "url": url or "/", "kind": kind, "id": note.id}
@@ -50,15 +46,11 @@ def notify(user, *, title: str, body: str = "", url: str = "", kind: str = "syst
         _push(sub, payload)
     return note
 
-
 def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", kind: str = "system") -> int:
     users = list(users)
-    if not users:
-        return 0
+    if not users: return 0
     user_ids = [u.id for u in users]
     user_by_id = {u.id: u for u in users}
-
-    # bulk_create возвращает объекты с pk только на PostgreSQL; получаем pk явно
     with transaction.atomic():
         Notification.objects.bulk_create([
             Notification(user=u, kind=kind, title=title, body=body, url=url)
@@ -68,7 +60,6 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
         Notification.objects.filter(user_id__in=user_ids, kind=kind, title=title)
         .order_by("-id")[: len(users)]
     )
-
     subs_by_user: dict[int, list] = {}
     for sub in PushSubscription.objects.filter(user_id__in=user_ids):
         subs_by_user.setdefault(sub.user_id, []).append(sub)
@@ -78,5 +69,4 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
         pubsub_publish(note.user_id, payload)
         for sub in subs_by_user.get(note.user_id, []):
             _push(sub, payload)
-
     return len(notes)

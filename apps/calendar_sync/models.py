@@ -7,10 +7,8 @@ import secrets
 from django.conf import settings
 from django.db import models
 
-
 def _make_token() -> str:
     return secrets.token_urlsafe(24)
-
 
 class CalendarFeedToken(models.Model):
     user = models.OneToOneField(

@@ -1,10 +1,3 @@
-"""Redis pub/sub helpers for realtime notification delivery.
-
-Falls back to a no-op publisher when Redis is not configured, so local SQLite
-dev (no REDIS_URL) keeps working — SSE clients simply receive nothing until
-they reconnect and re-poll via the existing /api/notifications endpoint.
-"""
-
 from __future__ import annotations
 
 import json
@@ -19,15 +12,12 @@ logger = logging.getLogger(__name__)
 _redis_client = None
 _redis_lock = threading.Lock()
 
-
 def _channel(user_id: int) -> str:
     return f"kinnet:notif:user:{user_id}"
-
 
 def _client():
     global _redis_client
     if _redis_client is not None:
-        # Проверяем живость соединения; при обрыве сбрасываем синглтон
         try:
             _redis_client.ping()
             return _redis_client
@@ -37,17 +27,14 @@ def _client():
     with _redis_lock:
         if _redis_client is not None:
             return _redis_client
-        if not getattr(settings, "REDIS_URL", None):
-            return None
+        if not getattr(settings, "REDIS_URL", None): return None
         try:
             import redis  # type: ignore
         except ImportError:
             logger.warning("redis-py не установлен; SSE pub/sub отключён")
             return None
-        # from_url создаёт пул соединений — клиент переиспользуется между запросами.
-        _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+            _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
-
 
 def publish(user_id: int, payload: dict) -> None:
     client = _client()
@@ -58,9 +45,7 @@ def publish(user_id: int, payload: dict) -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning("notif publish failed (%s)", exc)
 
-
 def subscribe(user_id: int, timeout: float = 25.0) -> Iterator[dict]:
-    """Yield decoded payloads from the user channel. Generator ends on disconnect."""
     client = _client()
     if client is None:
         return

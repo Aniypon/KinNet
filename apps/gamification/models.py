@@ -1,10 +1,7 @@
-"""Gamification: badges and per-user achievements."""
-
 from __future__ import annotations
 
 from django.conf import settings
 from django.db import models
-
 
 class Badge(models.Model):
     code = models.SlugField(unique=True)
@@ -12,16 +9,11 @@ class Badge(models.Model):
     description = models.TextField(blank=True)
     emoji = models.CharField(max_length=4, default="🏅")
 
-    def __str__(self) -> str:
+    def __str__(self):
         return self.title
 
-
 class UserBadge(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="badges",
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="badges")
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name="awards")
     awarded_at = models.DateTimeField(auto_now_add=True)
 
@@ -29,5 +21,5 @@ class UserBadge(models.Model):
         unique_together = ("user", "badge")
         ordering = ["-awarded_at"]
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.user} ← {self.badge}"
