@@ -14,7 +14,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 
 from core.family_context import current_family as _current_family, get_user_families as _user_families
-from core.models import Family, FamilyMember
+from core.models import FamilyMember
 from .models import Expense, ExpenseContribution, Wishlist, WishlistItem
 
 User = get_user_model()

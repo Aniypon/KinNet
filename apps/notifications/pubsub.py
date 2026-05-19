@@ -33,7 +33,7 @@ def _client():
         except ImportError:
             logger.warning("redis-py не установлен; SSE pub/sub отключён")
             return None
-            _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
+        _redis_client = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
     return _redis_client
 
 def publish(user_id: int, payload: dict) -> None:

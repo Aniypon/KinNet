@@ -3,7 +3,6 @@ from __future__ import annotations
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.middleware.csrf import get_token
-from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -11,7 +10,7 @@ from django.utils.html import escape
 from django.views.decorators.http import require_POST
 
 from core.family_context import current_family as _current_family, get_user_families as _user_families
-from core.models import Family, Task
+from core.models import Task
 from core.permissions import has_role
 
 from .models import Ingredient, Recipe, ShoppingItem, ShoppingList

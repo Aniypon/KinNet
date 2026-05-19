@@ -1,7 +1,6 @@
 """Template tags for role-based UI gating in KinNet templates."""
 
 from django import template
-from django.template import NodeList
 
 from core.permissions import has_role as _has_role
 

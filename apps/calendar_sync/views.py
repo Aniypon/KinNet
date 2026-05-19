@@ -10,7 +10,6 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-from core.family_context import get_user_families as _user_families
 from core.models import Event, Family
 
 from .models import CalendarFeedToken

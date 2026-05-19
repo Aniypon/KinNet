@@ -136,7 +136,6 @@ def family_tree_relations_update(request):
 
 @login_required
 def family_tree_graph(request):
-    from django.db.models import Q as _Q
     families_qs = Family.objects.filter(Q(memberships__user=request.user) | Q(created_by=request.user)).distinct()
     family_id = request.GET.get("family")
     family = (families_qs.filter(pk=family_id).first() if family_id else None) or families_qs.first()

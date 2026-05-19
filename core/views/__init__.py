@@ -1,8 +1,8 @@
-from .home import home, signup, profile_edit, set_active_family, ui_set_pref
-from .family import families, family_edit, family_delete, family_leave, family_detail, family_member_remove, invitation_accept, invitation_revoke, user_suggest, user_detail
-from .members import family_members, member_detail, member_edit, member_delete, family_tree, family_tree_edit, family_tree_order_update, family_tree_relations_update, family_tree_graph
-from .events import events, event_detail, event_edit, event_delete
-from .tasks import tasks, task_detail, task_edit, task_delete
-from .goals import goals, goal_detail
-from .photos import family_album, family_album_download, family_photo_download, family_photo_preview
-from .messages import messages, messages_api, message_send_api, message_pin_api, message_reaction_api, message_typing_api, message_delete
+from .home import home as home, signup as signup, profile_edit as profile_edit, set_active_family as set_active_family, ui_set_pref as ui_set_pref
+from .family import families as families, family_edit as family_edit, family_delete as family_delete, family_leave as family_leave, family_detail as family_detail, family_member_remove as family_member_remove, invitation_accept as invitation_accept, invitation_revoke as invitation_revoke, user_suggest as user_suggest, user_detail as user_detail
+from .members import family_members as family_members, member_detail as member_detail, member_edit as member_edit, member_delete as member_delete, family_tree as family_tree, family_tree_edit as family_tree_edit, family_tree_order_update as family_tree_order_update, family_tree_relations_update as family_tree_relations_update, family_tree_graph as family_tree_graph
+from .events import events as events, event_detail as event_detail, event_edit as event_edit, event_delete as event_delete
+from .tasks import tasks as tasks, task_detail as task_detail, task_edit as task_edit, task_delete as task_delete
+from .goals import goals as goals, goal_detail as goal_detail
+from .photos import family_album as family_album, family_album_download as family_album_download, family_photo_download as family_photo_download, family_photo_preview as family_photo_preview
+from .messages import messages as messages, messages_api as messages_api, message_send_api as message_send_api, message_pin_api as message_pin_api, message_reaction_api as message_reaction_api, message_typing_api as message_typing_api, message_delete as message_delete

@@ -50,7 +50,6 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
     users = list(users)
     if not users: return 0
     user_ids = [u.id for u in users]
-    user_by_id = {u.id: u for u in users}
     with transaction.atomic():
         Notification.objects.bulk_create([
             Notification(user=u, kind=kind, title=title, body=body, url=url)
