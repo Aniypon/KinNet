@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Семья{% endblock %}
+
+{% block content %}
+  <section class="page-hero work-page-hero family-hero" data-reveal>
+    <div>
+      <span class="kicker">семейный круг</span>
+      <h1>Семья</h1>
+      <p>Семейная группа, родные, древо и карточки людей на одном экране.</p>
+    </div>
+    <div class="page-toolbar">
+      {% if family %}
+        <a class="btn secondary" href="/members/?family={{ family.id }}&view=add&mode={{ tree_mode }}#member-form"><i data-lucide="user-plus"></i>Добавить человека</a>
+      {% else %}
+        <a class="btn" href="/families/">Создать семью</a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="filter-bar family-center-filter" data-reveal>
+    {% if families %}
+      <form method="get">
+        <input type="hidden" name="view" value="{{ current_view }}" />
+        <input type="hidden" name="mode" value="{{ tree_mode }}" />
+        <div class="filters">
+          <input
+            id="member-search"
+            type="search"
+            name="q"
+            value="{{ query }}"
+            placeholder="Поиск по имени/никнейму/родству"
+          />
+          <button class="btn secondary small" type="submit">Найти</button>
+          <a class="btn secondary small" href="/members/{% if family %}?view={{ current_view }}&mode={{ tree_mode }}{% endif %}">Сбросить</a>
+          <details class="filter-more">
+            <summary class="btn secondary small">Ещё</summary>
+            <div class="filter-more__menu">
+              {% if family %}<a href="/families/{{ family.id }}/">Настройки семьи</a>{% endif %}
+              <a href="/families/">Создать семью</a>
+              {% if can_leave %}<a class="danger-soft" href="/families/{{ family.id }}/leave/">Покинуть семью</a>{% endif %}
+            </div>
+          </details>
+        </div>
+      </form>
+    {% else %}
+      <p class="meta">Сначала создайте семью.</p>
+    {% endif %}
+  </section>
+
+  {% if family %}
+    <section
+      class="family-center"
+      data-family-center
+      data-family-id="{{ family.id }}"
+      data-can-manage="{% if can_manage %}1{% else %}0{% endif %}"
+      data-initial-view="{{ current_view }}"
+      data-initial-mode="{{ tree_mode }}"
+      data-selected-person="{{ selected_person_id }}"
+      data-reveal
+    >
+      <div class="family-center__tabs" role="tablist" aria-label="Семейный центр">
+        <a class="segmented-link {% if current_view != 'add' %}active{% endif %}" href="/members/?family={{ family.id }}&view=people&mode=view">Обзор</a>
+        <a class="segmented-link {% if current_view == 'add' %}active{% endif %}" href="/members/?family={{ family.id }}&view=add&mode={{ tree_mode }}#member-form">Добавить</a>
+      </div>
+
+      <section class="family-center__people surface" data-family-panel="people">
+        <div class="section-heading">
+          <div>
+            <h2>Люди</h2>
+            <p class="meta" id="member-result-count"></p>
+          </div>
+        </div>
+
+        <h3 class="meta">Участники семьи</h3>
+        {% if memberships %}
+          <div class="family-person-list" id="memberships-grid">
+            {% for membership in memberships %}
+              {% with profile=profiles_by_user|get_item:membership.user.id %}
+                <a
+                  class="card member-card"
+                  href="/members/user/{{ membership.user.id }}/"
+                  data-name="{{ membership.user.get_full_name|default:membership.user.username }} {{ membership.user.username }} {{ membership.get_role_display }}"
+                  data-kind="user"
+                >
+                  <div class="card-row">
+                    <div class="avatar">
+                      {% if profile and profile.avatar %}
+                        <img src="{{ profile.avatar.url }}" alt="Аватар" />
+                      {% else %}
+                        {{ membership.user.get_full_name|default:membership.user.username|slice:":1" }}
+                      {% endif %}
+                    </div>
+                    <div>
+                      <strong>{{ membership.user.get_full_name|default:membership.user.username }}</strong>
+                      <div class="member-facts">
+                        <span>@{{ membership.user.username }}</span>
+                        <span>{{ membership.get_role_display }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </a>
+              {% endwith %}
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="meta">Участников пока нет.</p>
+        {% endif %}
+
+        <h3 class="meta family-center__subhead">Добавленные родственники</h3>
+        {% if members %}
+          <div class="family-person-list" id="members-grid">
+            {% for member in members %}
+              <button class="card member-card" type="button" data-person-id="{{ member.id }}" data-name="{{ member }} {{ member.relation }}">
+                <div class="card-row">
+                  <div class="avatar">
+                    {% if member.first_name %}{{ member.first_name|slice:":1" }}{% elif member.last_name %}{{ member.last_name|slice:":1" }}{% else %}?{% endif %}
+                  </div>
+                  <div>
+                    <strong>{{ member }}</strong>
+                    <div class="member-facts">
+                      {% if member.relation %}<span>{{ member.relation }}</span>{% endif %}
+                      {% if member.birth_date %}<span>{{ member.birth_date|age_years }} лет</span><span>ДР {{ member.birth_date|next_birthday|date_ru_short }}</span>{% endif %}
+                      {% if member.parent1 %}<span>Мама: {{ member.parent1 }}</span>{% endif %}
+                      {% if member.parent2 %}<span>Папа: {{ member.parent2 }}</span>{% endif %}
+                    </div>
+                    {% if member.phone %}<div class="meta">Телефон: {{ member.phone }}</div>{% endif %}
+                  </div>
+                </div>
+              </button>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <strong>Пока нет данных о родственниках.</strong>
+            <a class="btn secondary small" href="/members/?family={{ family.id }}&view=add#member-form">Добавить родственника</a>
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="family-center__tree surface" data-family-panel="tree">
+        <div class="family-tree-head">
+          <div>
+            <h2>Древо</h2>
+            <p class="meta">Нажмите на кружок или имя в списке — карточка откроется справа.</p>
+          </div>
+          <div class="tree-mode-switch">
+            <a class="segmented-link {% if tree_mode == 'view' %}active{% endif %}" href="/members/?family={{ family.id }}&view=tree&mode=view">Просмотр</a>
+            {% if can_manage %}
+              <a class="segmented-link {% if tree_mode == 'edit' %}active{% endif %}" href="/members/?family={{ family.id }}&view=tree&mode=edit">Редактировать</a>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="family-tree-toolbar">
+          <input id="family-tree-search" type="search" placeholder="Найти в древе">
+          {% if can_manage %}
+            <button class="btn secondary small" type="button" data-tree-action="undo" hidden>Отменить</button>
+            <details class="danger-menu">
+              <summary class="btn secondary small">Ещё</summary>
+              <button class="danger-link" type="button" data-tree-action="show-all">Показать всех</button>
+              <button class="danger-link" type="button" data-tree-action="clear">Очистить</button>
+            </details>
+          {% endif %}
+        </div>
+
+        <div class="tree-status" data-tree-status hidden></div>
+        <div class="tree-issues" data-tree-issues></div>
+        <div class="kin-tree-board" data-tree-board>
+          {% if can_manage and tree_mode == "edit" %}
+            <div class="tree-drag-guide">
+              <span><strong>На человека</strong> создать пару</span>
+              <span><strong>На + ребёнок</strong> добавить ребёнка</span>
+              <span class="tree-drop-root tree-drop-root--board" data-tree-drop-root><strong>В пустую зону</strong> новый уровень</span>
+            </div>
+          {% endif %}
+          <div class="kin-tree-canvas" data-tree-canvas></div>
+        </div>
+
+        {% if can_manage %}
+          <div class="tree-editor-panel" data-tree-editor {% if tree_mode != "edit" %}hidden{% endif %}></div>
+          <div class="tree-palette" data-tree-palette {% if tree_mode != "edit" %}hidden{% endif %}>
+            <h3>Не в дереве</h3>
+            <p class="meta">Нажмите на человека, чтобы выбрать его, или перетащите на древо.</p>
+            <div class="tree-palette__items" data-tree-palette-items></div>
+            <div class="tree-drop-root" data-tree-drop-root>Новый уровень</div>
+          </div>
+        {% endif %}
+      </section>
+
+      <aside class="family-center__detail surface" data-person-detail>
+        <div class="empty-state">
+          <strong>Выберите человека</strong>
+          <p class="meta">Нажмите на родственника в списке или в древе. Добавление нового человека откроется здесь же.</p>
+        </div>
+      </aside>
+
+      <section class="family-center__add" id="member-form" data-family-panel="add" role="dialog" aria-modal="true" aria-labelledby="member-form-title" style="scroll-margin-top: 96px">
+        <div class="family-add-modal form-shell">
+          <div class="modal-head">
+            <div>
+              <span class="kicker">новый человек</span>
+              <h2 id="member-form-title">Добавить родственника</h2>
+            </div>
+            <a class="icon-button" href="/members/?family={{ family.id }}&view=people&mode=view" aria-label="Закрыть форму">
+              <i data-lucide="x"></i>
+            </a>
+          </div>
+          <form method="post" hx-post="{{ request.get_full_path }}" hx-swap="none" data-quick-form data-refresh="1">
+            {% csrf_token %}
+            {% include "partials/member_form_fields.html" with form=form %}
+            <div class="form-actions-sticky">
+              <button class="btn" type="submit">Добавить родственника</button>
+              <a class="btn secondary" href="/members/?family={{ family.id }}&view=people&mode=view">Отмена</a>
+            </div>
+          </form>
+        </div>
+      </section>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    {{ tree_data|json_script:"family-center-tree-data" }}
+    {{ tree_issues|json_script:"family-center-tree-issues" }}
+    <script>
+      (function () {
+        function scrollToForm() {
+          var el = document.getElementById("member-form");
+          if (!el) return;
+          requestAnimationFrame(function () {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+        var params = new URLSearchParams(window.location.search);
+        if (window.location.hash === "#member-form" || params.get("view") === "add") {
+          window.addEventListener("load", scrollToForm);
+        }
+      })();
+    </script>
+  {% endif %}
+{% endblock %}

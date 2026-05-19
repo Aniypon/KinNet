@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Семьи{% endblock %}
+
+{% block content %}
+  <div class="split">
+    <section class="card">
+      <h2>Мои семьи</h2>
+      {% if families_data %}
+        <ul>
+          {% for item in families_data %}
+            {% with family=item.family role=item.role %}
+            <li>
+              <strong>{{ family.name }}</strong>
+              {% if family.description %}<div class="meta">{{ family.description }}</div>{% endif %}
+              <div class="meta">
+                <a href="/families/{{ family.id }}/">Управление</a>
+              </div>
+              <div class="meta">
+                {% if role == "owner" or role == "admin" %}
+                  <a href="/families/{{ family.id }}/edit/">Редактировать</a>
+                {% endif %}
+                {% if role == "owner" %}
+                  · <a href="/families/{{ family.id }}/delete/">Удалить</a>
+                {% endif %}
+              </div>
+            </li>
+            {% endwith %}
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="meta">Пока нет семей. Создайте первую.</p>
+      {% endif %}
+    </section>
+
+    <section class="card">
+      <h2>Создать семью</h2>
+      <form method="post">
+        {% csrf_token %}
+        {% include "partials/form_fields.html" with form=form %}
+        <button class="btn" type="submit">Создать</button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

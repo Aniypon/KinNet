@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Сообщения{% endblock %}
+
+{% block content %}
+  <section class="chat-shell" id="family-chat" data-family-id="{{ family.id }}" data-user-id="{{ request.user.id }}">
+    <header class="chat-header">
+      <div>
+        <span class="eyebrow">Семейный чат</span>
+        <h2>{{ family.name|default:"Сообщения" }}</h2>
+      </div>
+    </header>
+
+    {% if family %}
+      <div class="chat-thread-tabs">
+        <a href="?family={{ family.id }}&thread=all" {% if thread == "all" %}class="active"{% endif %}>Все</a>
+        <a href="?family={{ family.id }}&thread=general" {% if thread == "general" %}class="active"{% endif %}>Общий</a>
+        <a href="?family={{ family.id }}&thread=event" {% if thread == "event" %}class="active"{% endif %}>События</a>
+        <a href="?family={{ family.id }}&thread=task" {% if thread == "task" %}class="active"{% endif %}>Задачи</a>
+      </div>
+
+      {% if pinned_messages %}
+        <div class="chat-pins">
+          {% for pin in pinned_messages %}
+            <article>
+              <strong>{{ pin.sender.get_full_name|default:pin.sender.username }}</strong>
+              <span>{{ pin.text|truncatechars:120 }}</span>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="chat-thread" aria-live="polite">
+        <ol class="chat-messages" id="chat-messages">
+          {% for item in messages %}
+            <li class="chat-message {% if item.sender == request.user %}is-own{% endif %}" data-message-id="{{ item.id }}">
+              <div class="chat-avatar" aria-hidden="true">
+                {{ item.sender.get_full_name|default:item.sender.username|first|upper }}
+              </div>
+              <div class="chat-bubble">
+                {% if item.reply_to %}
+                  <div class="chat-reply-preview">
+                    <strong>{{ item.reply_to.sender.get_full_name|default:item.reply_to.sender.username }}</strong>
+                    <span>{{ item.reply_to.text|truncatechars:90 }}</span>
+                  </div>
+                {% endif %}
+                <div class="chat-message__meta">
+                  <strong>{{ item.sender.get_full_name|default:item.sender.username }}</strong>
+                  <span>{{ item.created_at|date_ru }}</span>
+                </div>
+                <div class="chat-message__text">{{ item.text|linebreaksbr }}</div>
+                {% if item.attachment %}
+                  <a class="chat-attachment" href="{{ item.attachment.url }}" target="_blank" rel="noopener">
+                    {{ item.attachment_name|default:"Файл" }}
+                  </a>
+                {% endif %}
+                <div class="chat-reactions" data-reactions>
+                  {% regroup item.reactions.all by emoji as reaction_groups %}
+                  {% for group in reaction_groups %}
+                    <button type="button" data-react-message="{{ item.id }}" data-emoji="{{ group.grouper }}">
+                      {{ group.grouper }} {{ group.list|length }}
+                    </button>
+                  {% endfor %}
+                </div>
+                <div class="chat-message__actions">
+                  <button type="button" data-reply-message="{{ item.id }}" data-reply-author="{{ item.sender.get_full_name|default:item.sender.username }}" data-reply-text="{{ item.text|truncatechars:120 }}">Ответить</button>
+                  <button type="button" data-pin-message="{{ item.id }}">{% if item.is_pinned %}Открепить{% else %}Закрепить{% endif %}</button>
+                  <button type="button" data-react-message="{{ item.id }}" data-emoji="❤️">❤️</button>
+                  <button type="button" data-react-message="{{ item.id }}" data-emoji="👍">👍</button>
+                  <button type="button" data-react-message="{{ item.id }}" data-emoji="😂">😂</button>
+                  {% if item.sender == request.user or can_manage %}
+                    <a href="/messages/{{ item.id }}/delete/">Удалить</a>
+                  {% endif %}
+                </div>
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+        {% if not messages %}
+          <div class="chat-empty">
+            <h3>Пока тихо</h3>
+            <p>Напишите первое сообщение семье.</p>
+          </div>
+        {% endif %}
+        <div class="chat-typing" id="chat-typing" hidden></div>
+      </div>
+
+      <form class="chat-composer" method="post" id="chat-composer">
+        {% csrf_token %}
+        <input type="hidden" name="reply_to" id="chat-reply-id">
+        <div class="chat-reply-bar" id="chat-reply-bar" hidden>
+          <span id="chat-reply-label"></span>
+          <button type="button" id="chat-reply-cancel" aria-label="Отменить ответ">×</button>
+        </div>
+        <div class="chat-thread-fields">
+          <select name="thread_type" id="chat-thread-type" aria-label="Тип обсуждения">
+            <option value="general">Общий чат</option>
+            <option value="event">Обсуждение события</option>
+            <option value="task">Обсуждение задачи</option>
+          </select>
+          <select name="event" id="chat-event-thread" aria-label="Событие" hidden>
+            <option value="">Выберите событие</option>
+            {% for event in thread_events %}
+              <option value="{{ event.id }}">{{ event.title }}</option>
+            {% endfor %}
+          </select>
+          <select name="task" id="chat-task-thread" aria-label="Задача" hidden>
+            <option value="">Выберите задачу</option>
+            {% for task in thread_tasks %}
+              <option value="{{ task.id }}">{{ task.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {{ form.text }}
+        <input class="chat-file-input" type="file" name="attachment" id="chat-attachment" aria-label="Прикрепить файл">
+        <button class="btn" type="submit">Отправить</button>
+      </form>
+    {% else %}
+      <div class="chat-empty">
+        <h3>Сначала создайте семью</h3>
+        <p>После этого здесь появится общий чат.</p>
+      </div>
+    {% endif %}
+  </section>
+
+  <script>
+    (() => {
+      const chat = document.getElementById("family-chat");
+      if (!chat) return;
+      const list = document.getElementById("chat-messages");
+      const thread = document.querySelector(".chat-thread");
+      const form = document.getElementById("chat-composer");
+      const textarea = form?.querySelector("textarea");
+      const replyInput = document.getElementById("chat-reply-id");
+      const replyBar = document.getElementById("chat-reply-bar");
+      const replyLabel = document.getElementById("chat-reply-label");
+      const typingEl = document.getElementById("chat-typing");
+      const threadType = document.getElementById("chat-thread-type");
+      const eventThread = document.getElementById("chat-event-thread");
+      const taskThread = document.getElementById("chat-task-thread");
+      const attachmentInput = document.getElementById("chat-attachment");
+      const userId = Number(chat.dataset.userId);
+      let lastId = Math.max(0, ...[...document.querySelectorAll("[data-message-id]")].map((item) => Number(item.dataset.messageId)));
+      let typingTimer = null;
+
+      function getCookie(name) {
+        return document.cookie
+          .split(";")
+          .map((item) => item.trim())
+          .find((item) => item.startsWith(`${name}=`))
+          ?.split("=")[1] || "";
+      }
+
+      function escapeHtml(value) {
+        return String(value || "").replace(/[&<>"']/g, (char) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        }[char]));
+      }
+
+      function renderMessage(message) {
+        const existing = list.querySelector(`[data-message-id="${message.id}"]`);
+        const reactions = message.reactions.map((reaction) => `
+          <button class="${reaction.mine ? "is-mine" : ""}" type="button" data-react-message="${message.id}" data-emoji="${escapeHtml(reaction.emoji)}">
+            ${escapeHtml(reaction.emoji)} ${reaction.count}
+          </button>
+        `).join("");
+        const html = `
+          <div class="chat-avatar" aria-hidden="true">${escapeHtml(message.sender_initial)}</div>
+          <div class="chat-bubble">
+            ${message.reply_to ? `
+              <div class="chat-reply-preview">
+                <strong>${escapeHtml(message.reply_to.sender)}</strong>
+                <span>${escapeHtml(message.reply_to.text)}</span>
+              </div>
+            ` : ""}
+            <div class="chat-message__meta">
+              <strong>${escapeHtml(message.sender)}</strong>
+              <span>${message.is_pinned ? "Закреплено · " : ""}${escapeHtml(message.thread_label)} · ${escapeHtml(message.created_at)}</span>
+            </div>
+            <div class="chat-message__text">${escapeHtml(message.text).replace(/\n/g, "<br>")}</div>
+            ${message.attachment ? `<a class="chat-attachment" href="${escapeHtml(message.attachment)}" target="_blank" rel="noopener">${escapeHtml(message.attachment_name || "Файл")}</a>` : ""}
+            <div class="chat-reactions" data-reactions>${reactions}</div>
+            <div class="chat-message__actions">
+              <button type="button" data-reply-message="${message.id}" data-reply-author="${escapeHtml(message.sender)}" data-reply-text="${escapeHtml(message.text.slice(0, 120))}">Ответить</button>
+              <button type="button" data-pin-message="${message.id}">${message.is_pinned ? "Открепить" : "Закрепить"}</button>
+              <button type="button" data-react-message="${message.id}" data-emoji="❤️">❤️</button>
+              <button type="button" data-react-message="${message.id}" data-emoji="👍">👍</button>
+              <button type="button" data-react-message="${message.id}" data-emoji="😂">😂</button>
+              ${message.can_delete ? `<a href="/messages/${message.id}/delete/">Удалить</a>` : ""}
+            </div>
+          </div>
+        `;
+        if (existing) {
+          existing.className = `chat-message ${message.sender_id === userId ? "is-own" : ""}`;
+          existing.innerHTML = html;
+          return existing;
+        }
+        const item = document.createElement("li");
+        item.className = `chat-message ${message.sender_id === userId ? "is-own" : ""}`;
+        item.dataset.messageId = message.id;
+        item.innerHTML = html;
+        list.appendChild(item);
+        return item;
+      }
+
+      function scrollToBottom() {
+        thread.scrollTop = thread.scrollHeight;
+      }
+
+      async function poll() {
+        const params = new URLSearchParams(window.location.search);
+        params.set("family", chat.dataset.familyId);
+        params.set("after", lastId);
+        const response = await fetch(`/messages/api/?${params.toString()}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        payload.messages.forEach((message) => {
+          renderMessage(message);
+          lastId = Math.max(lastId, message.id);
+        });
+        if (payload.messages.length) {
+          document.querySelector(".chat-empty")?.remove();
+          scrollToBottom();
+        }
+        if (typingEl) {
+          typingEl.hidden = !payload.typing.length;
+          typingEl.textContent = payload.typing.length ? `${payload.typing.join(", ")} пишет...` : "";
+        }
+      }
+
+      async function sendTyping(isTyping) {
+        await fetch(`/messages/api/typing/?family=${chat.dataset.familyId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(getCookie("csrftoken")) },
+          body: JSON.stringify({ typing: isTyping }),
+        });
+      }
+
+      form?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const text = textarea.value.trim();
+        if (!text && !attachmentInput.files.length) return;
+        const formData = new FormData();
+        formData.append("text", text);
+        formData.append("reply_to", replyInput.value);
+        formData.append("thread_type", threadType.value);
+        formData.append("event", eventThread.value);
+        formData.append("task", taskThread.value);
+        if (attachmentInput.files[0]) formData.append("attachment", attachmentInput.files[0]);
+        const response = await fetch(`/messages/api/send/?family=${chat.dataset.familyId}`, {
+          method: "POST",
+          headers: { "X-CSRFToken": decodeURIComponent(getCookie("csrftoken")) },
+          body: formData,
+        });
+        const payload = await response.json();
+        if (!response.ok) return;
+        renderMessage(payload.message);
+        lastId = Math.max(lastId, payload.message.id);
+        textarea.value = "";
+        attachmentInput.value = "";
+        replyInput.value = "";
+        replyBar.hidden = true;
+        await sendTyping(false);
+        document.querySelector(".chat-empty")?.remove();
+        scrollToBottom();
+      });
+
+      textarea?.addEventListener("input", () => {
+        sendTyping(Boolean(textarea.value.trim()));
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => sendTyping(false), 4500);
+      });
+
+      list.addEventListener("click", async (event) => {
+        const replyButton = event.target.closest("[data-reply-message]");
+        if (replyButton) {
+          replyInput.value = replyButton.dataset.replyMessage;
+          replyLabel.textContent = `Ответ ${replyButton.dataset.replyAuthor}: ${replyButton.dataset.replyText}`;
+          replyBar.hidden = false;
+          textarea.focus();
+          return;
+        }
+        const reactionButton = event.target.closest("[data-react-message]");
+        const pinButton = event.target.closest("[data-pin-message]");
+        if (pinButton) {
+          const response = await fetch(`/messages/api/pin/?family=${chat.dataset.familyId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(getCookie("csrftoken")) },
+            body: JSON.stringify({ message: pinButton.dataset.pinMessage }),
+          });
+          if (!response.ok) return;
+          const payload = await response.json();
+          renderMessage(payload.message);
+          return;
+        }
+        if (!reactionButton) return;
+        const response = await fetch(`/messages/api/reaction/?family=${chat.dataset.familyId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": decodeURIComponent(getCookie("csrftoken")) },
+          body: JSON.stringify({ message: reactionButton.dataset.reactMessage, emoji: reactionButton.dataset.emoji }),
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderMessage(payload.message);
+      });
+
+      document.getElementById("chat-reply-cancel")?.addEventListener("click", () => {
+        replyInput.value = "";
+        replyBar.hidden = true;
+      });
+
+      threadType?.addEventListener("change", () => {
+        eventThread.hidden = threadType.value !== "event";
+        taskThread.hidden = threadType.value !== "task";
+      });
+
+      scrollToBottom();
+      setInterval(poll, 2500);
+    })();
+  </script>
+{% endblock %}

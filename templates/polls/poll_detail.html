@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ poll.question }}{% endblock %}
+{% block content %}
+<section class="page-hero page-hero--poll" data-reveal>
+  <span class="kicker">опрос</span>
+  <h1 class="poll-question">{{ poll.question }}</h1>
+  <p class="meta">{{ poll.family.name }} · {{ poll.author }}{% if poll.closes_at %} · {% if poll.effectively_closed %}закрыт {{ poll.closes_at|date:"d.m.Y H:i" }}{% else %}до {{ poll.closes_at|date:"d.m.Y H:i" }}{% endif %}{% endif %}</p>
+  <div class="card-actions">
+    <a class="btn secondary small" href="{% url 'polls:poll_update' poll.id %}">Изменить</a>
+    <form method="post" action="{% url 'polls:poll_delete' poll.id %}">
+      {% csrf_token %}
+      <button class="btn secondary small danger-soft" type="submit">Удалить</button>
+    </form>
+  </div>
+  {% if poll.description %}<p>{{ poll.description }}</p>{% endif %}
+</section>
+
+<section class="surface poll-vote-panel" data-reveal>
+  <form method="post" action="{% url 'polls:poll_vote' poll.id %}">
+    {% csrf_token %}
+    <div class="poll-choice-list">
+      {% for choice in choices %}
+        <label class="poll-choice">
+          <input
+            type="{% if poll.allow_multiple %}checkbox{% else %}radio{% endif %}"
+            name="choice"
+            value="{{ choice.id }}"
+            {% if choice.id in user_voted_ids %}checked{% endif %}
+          />
+          <span class="poll-choice__text">{{ choice.text }}</span>
+          <span class="badge">{{ choice.vote_count }}</span>
+        </label>
+      {% empty %}
+        <div class="empty-state">Варианты пока не добавлены.</div>
+      {% endfor %}
+    </div>
+    <button class="btn poll-submit" type="submit" {% if poll.effectively_closed %}disabled{% endif %}>
+      Голосовать
+    </button>
+  </form>
+</section>
+{% endblock %}

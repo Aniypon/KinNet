@@ -1,0 +1,15 @@
+{% load kinnet_roles %}
+{% url 'cookbook:recipe_delete' recipe.id as recipe_delete_url %}
+<div class="module-card-wrapper" id="recipe-{{ recipe.id }}" x-data="{ open: false }">
+  <a class="module-card" href="{% url 'cookbook:recipe_detail' recipe.id %}" data-reveal>
+    <span class="module-card__icon"><i data-lucide="utensils"></i></span>
+    <h3>{{ recipe.title }}</h3>
+    <p class="meta">{{ recipe.family.name }} · {{ recipe.cook_time_minutes }} мин · {{ recipe.servings }} порц.</p>
+    {% if recipe.tags %}<p class="meta">{{ recipe.tags }}</p>{% endif %}
+  </a>
+  {% role_gate "owner,admin" %}
+  <div class="card-actions" style="margin-top:0.25rem;">
+    <a class="btn small secondary" href="{% url 'cookbook:recipe_update' recipe.id %}">Изменить</a>
+  </div>
+  {% endrole_gate %}
+</div>

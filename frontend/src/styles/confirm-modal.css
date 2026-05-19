@@ -1,0 +1,45 @@
+/* ── Confirm overlay (Alpine.js) ─────────────────────────────────────────── */
+[x-cloak] { display: none !important; }
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: overlay-in 160ms var(--ease) both;
+}
+
+.confirm-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 1rem);
+  padding: clamp(1.25rem, 4vw, 2rem);
+  width: min(100%, 400px);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.18);
+  animation: modal-slide-in 200ms var(--ease) both;
+}
+
+.confirm-dialog p + p { margin-top: 0.4rem; }
+.confirm-dialog .card-actions { margin-top: 1.25rem; }
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.btn-link.danger { color: var(--danger, #c0392b); }
+.btn.danger {
+  background: var(--danger, #c0392b);
+  color: #fff;
+  border-color: var(--danger, #c0392b);
+}
+

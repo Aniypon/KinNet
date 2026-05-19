@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Опросы{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero planner-hero" data-reveal>
+  <div>
+    <span class="kicker">семейные решения</span>
+    <h1>Опросы и голосования</h1>
+    <p>Быстро договориться внутри выбранной семьи.</p>
+    <div class="card-actions">
+      <a class="btn" href="{% url 'polls:poll_create' %}?family={{ family.id }}"><i data-lucide="plus"></i>Опрос</a>
+    </div>
+  </div>
+</section>
+
+<div class="module-grid">
+  {% for poll in active_polls %}
+    <a class="module-card" href="{% url 'polls:poll_detail' poll.id %}" data-reveal>
+      <span class="module-card__icon"><i data-lucide="vote"></i></span>
+      <span>
+        <strong>{{ poll.question }}</strong>
+        <p class="meta">{{ poll.family.name }} · Открыт{% if poll.closes_at %} · до {{ poll.closes_at|date:"d.m.Y H:i" }}{% endif %}</p>
+      </span>
+    </a>
+  {% empty %}
+    <div class="empty-state">Активных опросов нет.</div>
+  {% endfor %}
+</div>
+
+{% if closed_polls %}
+<details class="surface goals-done" data-reveal style="margin-top:16px;">
+  <summary><strong>Завершённые опросы</strong> <span class="meta">({{ closed_polls|length }})</span></summary>
+  <ul class="plain-list">
+    {% for poll in closed_polls %}
+      <li>
+        <a href="{% url 'polls:poll_detail' poll.id %}">
+          <i data-lucide="check-circle-2"></i>
+          <strong>{{ poll.question }}</strong>
+          <span class="meta">— {{ poll.family.name }}{% if poll.closes_at %} · закрыт {{ poll.closes_at|date:"d.m.Y H:i" }}{% endif %}</span>
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}
+{% endblock %}

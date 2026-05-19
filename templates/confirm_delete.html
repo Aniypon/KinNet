@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 600px; margin: 0 auto;">
+    <h2>{{ title }}</h2>
+    <p>Вы уверены, что хотите {{ action_verb|default:"удалить"|lower }}: <strong>{{ object }}</strong>?</p>
+    {% if action_note %}<p class="meta">{{ action_note }}</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <button class="btn" type="submit">{{ action_verb|default:"Удалить" }}</button>
+      <a class="btn secondary" href="javascript:history.back()">Отмена</a>
+    </form>
+  </section>
+{% endblock %}

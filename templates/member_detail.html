@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Карточка родственника{% endblock %}
+
+{% block content %}
+  <section class="card" style="max-width: 720px; margin: 0 auto;">
+    <h2>{{ member }}</h2>
+    {% if member.relation %}<p class="meta">{{ member.relation }}</p>{% endif %}
+
+    <div class="meta">
+      Дата рождения: {% if member.birth_date %}{{ member.birth_date|date_ru }}{% else %}—{% endif %}
+    </div>
+    {% if member.birth_date %}
+      <div class="meta">Возраст: {{ member.birth_date|age_years }}</div>
+      <div class="meta">Ближайший день рождения: {{ member.birth_date|next_birthday|date_ru }}</div>
+    {% endif %}
+    <div class="meta">Телефон: {{ member.phone|default:"—" }}</div>
+    <div class="meta">Email: {{ member.email|default:"—" }}</div>
+    <div class="meta">Адрес (дом): {{ member.address_home|default:"—" }}</div>
+    <div class="meta">Адрес (дача): {{ member.address_country_house|default:"—" }}</div>
+    <div class="meta">Соцсети: {{ member.socials|default:"—" }}</div>
+    <div class="meta">Место работы: {{ member.workplace|default:"—" }}</div>
+    <div class="meta">Заметки: {{ member.notes|default:"—" }}</div>
+
+    <div class="meta">Мама: {{ member.parent1|default:"—" }}</div>
+    <div class="meta">Папа: {{ member.parent2|default:"—" }}</div>
+
+    <div class="meta" style="margin-top: 12px;">
+      <a href="/members/?family={{ member.family.id }}">Назад к списку</a>
+    </div>
+  </section>
+{% endblock %}

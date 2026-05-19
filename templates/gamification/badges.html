@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Достижения{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Достижения</h1>
+  <p>Бейджи за активность в семье. Открыты по мере использования KinNet.</p>
+  <p class="meta">Получено {{ earned_count }} из {{ total_count }}.</p>
+</section>
+
+<div class="grid" style="margin-top:16px;">
+  {% for it in items %}
+    <div class="card badge-card{% if not it.earned %} badge-card--locked{% endif %}"
+         style="{% if not it.earned %}filter:grayscale(1);opacity:.65;{% endif %}">
+      <h3 style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:1.4em;{% if not it.earned %}filter:grayscale(1);{% endif %}">{{ it.badge.emoji }}</span>
+        <span>{{ it.badge.title }}</span>
+        {% if it.earned %}
+          <span class="meta" style="margin-left:auto;color:var(--color-accent,#c8684b);">✓</span>
+        {% else %}
+          <span class="meta" style="margin-left:auto;">🔒</span>
+        {% endif %}
+      </h3>
+      <p>{{ it.badge.description }}</p>
+
+      <div style="margin-top:10px;">
+        <div style="height:8px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden;">
+          <div style="height:100%;width:{{ it.percent }}%;background:{% if it.earned %}var(--color-accent,#c8684b){% else %}rgba(0,0,0,.35){% endif %};transition:width .4s ease;"></div>
+        </div>
+        <p class="meta" style="margin-top:6px;">
+          {% if it.earned %}
+            Получено {{ it.awarded_at|date:"d.m.Y" }}
+          {% else %}
+            Прогресс: {{ it.current }} / {{ it.target }} ({{ it.percent }}%)
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  {% empty %}
+    <p>Бейджи ещё не загружены.</p>
+  {% endfor %}
+</div>
+{% endblock %}

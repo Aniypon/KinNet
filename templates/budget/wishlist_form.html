@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{% if wishlist %}Изменить список желаний{% else %}Новый список желаний{% endif %}{% endblock %}
+{% block content %}
+{% include "partials/section_header.html" with title=page_title %}
+<section class="card">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="family" value="{{ family.id }}">
+    <label>Название</label>
+    <input name="title" value="{% if wishlist %}{{ wishlist.title }}{% else %}Мой список желаний{% endif %}">
+    <div class="card-actions">
+      <button class="btn" type="submit">{% if wishlist %}Сохранить{% else %}Создать{% endif %}</button>
+      <a class="btn secondary" href="{% url 'budget:wishlist_index' %}?family={{ family.id }}">Отмена</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

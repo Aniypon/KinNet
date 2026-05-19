@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Семейный альбом{% endblock %}
+
+{% block content %}
+  {% if not families %}
+    <section class="card">
+      <p class="meta">Сначала создайте семью.</p>
+    </section>
+  {% endif %}
+
+  <section class="card album-page" style="margin-top: 16px;">
+    <div class="album-header">
+      <div>
+        <h2>Семейный альбом</h2>
+        <p class="meta">Фото хранятся на сервере 7 дней после загрузки и затем автоматически удаляются.</p>
+      </div>
+      {% if photos %}
+        <span class="album-counter">{{ photos|length }} фото</span>
+      {% endif %}
+    </div>
+
+    {% if albums %}
+      <div class="album-folder-list">
+        {% for album in albums %}
+          <details class="album-folder" open>
+            <summary>
+              <span class="album-folder__icon" aria-hidden="true"><i data-lucide="folder"></i></span>
+              <span class="album-folder__title">
+                <strong>{{ album.title }}</strong>
+                {% if album.event %}
+                  <a href="{% url 'event_detail' album.event.id %}">Открыть событие</a>
+                {% endif %}
+              </span>
+              <span class="album-folder__actions">
+                <span class="album-folder__count">{{ album.photos|length }} фото</span>
+                {% if album.event %}
+                  <a class="btn secondary small" href="{% url 'family_album_download' %}?family={{ family.id }}&event={{ album.event.id }}" onclick="event.stopPropagation();">
+                    <i data-lucide="archive"></i>
+                    <span>Скачать папку</span>
+                  </a>
+                {% else %}
+                  <a class="btn secondary small" href="{% url 'family_album_download' %}?family={{ family.id }}&unlinked=1" onclick="event.stopPropagation();">
+                    <i data-lucide="archive"></i>
+                    <span>Скачать папку</span>
+                  </a>
+                {% endif %}
+              </span>
+            </summary>
+
+            <div class="album-photo-grid">
+              {% for photo in album.photos %}
+                <article class="album-photo">
+                  <img
+                    src="{% url 'family_photo_preview' photo.id %}"
+                    alt="{% if photo.caption %}{{ photo.caption }}{% else %}Фото из семейного альбома{% endif %}"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div class="album-photo__body">
+                    {% if photo.caption %}<strong>{{ photo.caption }}</strong>{% endif %}
+                    {% if photo.uploaded_by %}
+                      <span>Загрузил: {{ photo.uploaded_by.get_full_name|default:photo.uploaded_by.username }}</span>
+                    {% endif %}
+                    <span>Удалится: {{ photo.expires_at|date:"d.m.Y H:i" }}</span>
+                    <a class="btn secondary small" href="{% url 'family_photo_download' photo.id %}">
+                      <i data-lucide="download"></i>
+                      <span>Скачать оригинал</span>
+                    </a>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="meta">Пока нет фотографий.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h2>Добавить фото</h2>
+    <p class="meta">Загружая фото, вы соглашаетесь, что оно будет доступно только неделю.</p>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% include "partials/form_fields.html" with form=form %}
+      <button class="btn" type="submit">Загрузить</button>
+    </form>
+  </section>
+{% endblock %}

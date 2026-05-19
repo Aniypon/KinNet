@@ -1,0 +1,85 @@
+{% if form.non_field_errors %}
+  <div class="form-errors">{{ form.non_field_errors }}</div>
+{% endif %}
+
+{% for hidden in form.hidden_fields %}
+  {{ hidden }}
+{% endfor %}
+
+<div class="form-section">
+  <div class="form-section__header">
+    <span class="kicker">основное</span>
+    <h3>Мои данные</h3>
+  </div>
+  <div class="form-panel avatar-field{% if form.avatar.errors %} has-error{% endif %}">
+    <div class="avatar-field__preview">
+      <div class="avatar avatar--profile">
+        {% if form.instance.avatar %}
+          <img src="{{ form.instance.avatar.url }}" alt="Аватар" />
+        {% else %}
+          {{ request.user.get_full_name|default:request.user.username|slice:":1" }}
+        {% endif %}
+      </div>
+      <div>
+        <label for="{{ form.avatar.id_for_label }}">Аватар</label>
+        <p class="meta">Фото будет видно в семье и профиле.</p>
+      </div>
+    </div>
+    <div class="avatar-field__controls">
+      {% if form.instance.avatar %}
+        <label class="avatar-field__clear" for="{{ form.avatar.html_name }}-clear_id">
+          <input type="checkbox" name="{{ form.avatar.html_name }}-clear" id="{{ form.avatar.html_name }}-clear_id">
+          <span>Удалить текущее фото</span>
+        </label>
+      {% endif %}
+      <label class="avatar-field__file" for="{{ form.avatar.id_for_label }}">
+        <span class="avatar-field__file-label">Загрузить новое фото</span>
+        <input type="file" name="{{ form.avatar.html_name }}" id="{{ form.avatar.id_for_label }}" accept="image/*">
+      </label>
+    </div>
+    {% if form.avatar.errors %}
+      <div class="form-errors">{{ form.avatar.errors }}</div>
+    {% endif %}
+  </div>
+  {% include "partials/form_field_panel.html" with field=form.first_name %}
+  {% include "partials/form_field_panel.html" with field=form.last_name %}
+  {% include "partials/form_field_panel.html" with field=form.middle_name %}
+  {% include "partials/form_field_panel.html" with field=form.relation %}
+  {% include "partials/form_field_panel.html" with field=form.birth_date %}
+</div>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">контакты</span>
+      <strong>Телефон, почта и соцсети</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.phone %}
+  {% include "partials/form_field_panel.html" with field=form.email %}
+  {% include "partials/form_field_panel.html" with field=form.socials %}
+</details>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">детали</span>
+      <strong>Адреса, работа и заметки</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.address_home %}
+  {% include "partials/form_field_panel.html" with field=form.address_country_house %}
+  {% include "partials/form_field_panel.html" with field=form.workplace %}
+  {% include "partials/form_field_panel.html" with field=form.notes %}
+</details>
+
+<details class="form-section">
+  <summary>
+    <span>
+      <span class="kicker">связи</span>
+      <strong>Мама и папа</strong>
+    </span>
+  </summary>
+  {% include "partials/form_field_panel.html" with field=form.parent1 %}
+  {% include "partials/form_field_panel.html" with field=form.parent2 %}
+</details>

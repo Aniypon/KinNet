@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load kinnet_roles %}
+{% block title %}Семейный бюджет{% endblock %}
+{% block content %}
+<section class="page-hero work-page-hero planner-hero" data-reveal>
+  <div>
+    <span class="kicker">бюджет семьи</span>
+    <h1>{{ family.name|default:"Бюджет" }}</h1>
+    <p>Общие расходы семьи и личные траты в одном месте.</p>
+    <div class="card-actions">
+      <a class="btn" href="#new-expense">+ Добавить расход</a>
+      <a class="btn secondary" href="{% url 'budget:wishlist_index' %}?family={{ family.id }}">Списки желаний</a>
+    </div>
+  </div>
+</section>
+
+<nav class="filters" data-reveal style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:1rem;">
+  {% for key, label in period_choices %}
+    <a class="btn small {% if period == key %}{% else %}secondary{% endif %}"
+       href="?family={{ family.id }}&period={{ key }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+
+<section class="metric-grid" data-reveal style="margin-top:1rem;">
+  <article class="card">
+    <span class="kicker">Потрачено</span>
+    <h2 style="margin:0.2rem 0;">{{ period_total|floatformat:"0" }} ₽</h2>
+    {% if delta_pct is not None %}
+      <p class="meta" style="margin:0;">
+        {{ delta_arrow }} {{ delta_pct|floatformat:0 }}% vs прошлый период
+        {% if prev_total %}<br><small>({{ prev_total|floatformat:"0" }} ₽ ранее)</small>{% endif %}
+      </p>
+    {% else %}
+      <p class="meta" style="margin:0;">Базовый период</p>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <span class="kicker">Средний чек</span>
+    <h2 style="margin:0.2rem 0;">{{ period_avg|floatformat:"0" }} ₽</h2>
+    <p class="meta" style="margin:0;">{{ period_count }} операци{{ period_count|pluralize:"й,я,й" }}</p>
+  </article>
+
+  <article class="card">
+    <span class="kicker">Топ-категория</span>
+    <h2 style="margin:0.2rem 0;">{{ top_category|default:"—" }}</h2>
+    {% if by_category %}
+      <p class="meta" style="margin:0;">{{ by_category.0.total|floatformat:"0" }} ₽ · {{ by_category.0.pct }}%</p>
+    {% else %}
+      <p class="meta" style="margin:0;">Нет данных</p>
+    {% endif %}
+  </article>
+
+  <article class="card">
+    <span class="kicker">Кто платил больше всех</span>
+    {% if by_payer %}
+      <h2 style="margin:0.2rem 0;">{{ by_payer.0.payer__first_name|default:by_payer.0.payer__username }}</h2>
+      <p class="meta" style="margin:0;">{{ by_payer.0.total|floatformat:"0" }} ₽ · {{ by_payer.0.n }} опер.</p>
+    {% else %}
+      <h2 style="margin:0.2rem 0;">—</h2>
+      <p class="meta" style="margin:0;">Нет данных</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="split" style="margin-top:1rem;">
+  <div class="stack-list">
+    {% role_gate "owner,admin" %}
+    <section class="card" id="new-expense" data-reveal x-data="{ open: false }">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+        <h3 style="margin:0;">Добавить расход</h3>
+        <button class="btn small secondary" type="button" @click="open = !open" x-text="open ? 'Свернуть' : 'Открыть форму'">Открыть форму</button>
+      </div>
+      <form x-show="open" x-cloak x-transition
+            hx-post="{% url 'budget:expense_create' %}?family={{ family.id }}"
+            hx-target="#expense-list"
+            hx-swap="afterbegin"
+            hx-on::after-request="this.reset(); open=false;"
+            style="margin-top:0.7rem;">
+        {% csrf_token %}
+        <input type="hidden" name="family" value="{{ family.id }}">
+        <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+          <label>Название<input name="title" required></label>
+          <label>Сумма ₽<input name="amount" type="number" step="0.01" required></label>
+          <label>Категория<input name="category" placeholder="продукты, аренда" list="cat-list"></label>
+          <label>Дата<input name="spent_on" type="text" data-mask="date" inputmode="numeric" autocomplete="off" placeholder="дд.мм.гггг"></label>
+        </div>
+        <label style="display:block;margin-top:0.5rem;">Заметки<textarea name="notes" rows="2"></textarea></label>
+        <button class="btn" type="submit" style="margin-top:0.6rem;">Сохранить</button>
+        <datalist id="cat-list">
+          {% for c in by_category %}<option value="{{ c.label }}"></option>{% endfor %}
+        </datalist>
+      </form>
+    </section>
+    {% endrole_gate %}
+
+    <h3 style="margin:0.5rem 0 0;">Операции</h3>
+    <div id="expense-list" class="stack-list">
+      {% for e in expenses %}
+        {% include "budget/_expense_row.html" with expense=e %}
+      {% empty %}
+        <div class="empty-state">
+          За этот период расходов нет.
+          <br><small>Переключите период выше или добавьте расход.</small>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <aside class="stack-list">
+    <article class="card">
+      <h3 style="margin-top:0;">Категории</h3>
+      {% for c in by_category %}
+        <div style="margin-bottom:0.6rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.92rem;">
+            <span>{{ c.label }}</span>
+            <strong>{{ c.total|floatformat:"0" }} ₽</strong>
+          </div>
+          <div style="height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:3px;">
+            <div style="height:100%;width:{{ c.pct }}%;background:var(--accent);"></div>
+          </div>
+          <small class="meta">{{ c.pct }}%</small>
+        </div>
+      {% empty %}
+        <p class="meta">Нет категорий за период.</p>
+      {% endfor %}
+    </article>
+
+    <article class="card">
+      <h3 style="margin-top:0;">Кто платил</h3>
+      {% for row in by_payer %}
+        <div style="display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid var(--line);">
+          <span>{{ row.payer__first_name|default:row.payer__username }} {{ row.payer__last_name }}</span>
+          <strong>{{ row.total|floatformat:"0" }} ₽</strong>
+        </div>
+      {% empty %}
+        <p class="meta">Нет данных.</p>
+      {% endfor %}
+    </article>
+  </aside>
+</section>
+{% endblock %}

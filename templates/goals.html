@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load date_filters %}
+
+{% block title %}Общие цели{% endblock %}
+
+{% block content %}
+  <section class="page-hero work-page-hero goals-hero" data-reveal>
+    <div>
+      <span class="kicker">копим вместе</span>
+      <h1>Общие цели</h1>
+      <p class="meta">Накопления и крупные семейные покупки. Видно, кто сколько внёс и сколько осталось.</p>
+      <div class="card-actions">
+        <button class="btn" type="button" onclick="document.getElementById('goal-create').showModal()">
+          <i data-lucide="plus"></i>Новая цель
+        </button>
+      </div>
+    </div>
+    {% if active_count or done_count %}
+      <div class="goals-summary">
+        <div class="goal-summary-stat">
+          <span class="goal-summary-val">{{ active_count }}</span>
+          <span class="meta">В работе</span>
+        </div>
+        <div class="goal-summary-stat">
+          <span class="goal-summary-val">{{ done_count }}</span>
+          <span class="meta">Готово</span>
+        </div>
+        <div class="goal-summary-stat">
+          <span class="goal-summary-val">{{ total_collected|floatformat:0 }} / {{ total_target|floatformat:0 }}</span>
+          <span class="meta">Собрано всего</span>
+          <div class="goal-progress goal-progress--slim" aria-hidden="true">
+            <div class="goal-progress-bar" style="width: {{ overall_pct }}%"></div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if active_goals %}
+    <section class="goals-grid" data-reveal>
+      {% for goal in active_goals %}
+        <a class="surface goal-card {% if goal.is_overdue %}goal-card--overdue{% endif %}" href="{% url 'goal_detail' goal.id %}">
+          <header class="goal-card-head">
+            <h3>{{ goal.title }}</h3>
+            <span class="goal-pct">{{ goal.pct }}%</span>
+          </header>
+          {% if goal.description %}<p class="meta goal-card-desc">{{ goal.description|truncatechars:90 }}</p>{% endif %}
+          <div class="goal-progress" aria-label="Прогресс {{ goal.pct }}%">
+            <div class="goal-progress-bar" style="width: {{ goal.pct }}%"></div>
+          </div>
+          <div class="goal-card-amounts">
+            <span><strong>{{ goal.collected|floatformat:0 }}</strong> <span class="meta">из {{ goal.target_amount|floatformat:0 }}</span></span>
+            <span class="meta">Осталось {{ goal.remaining|floatformat:0 }}</span>
+          </div>
+          <footer class="goal-card-foot meta">
+            {% if goal.due_date %}
+              <span>
+                <i data-lucide="calendar"></i>
+                {% if goal.is_overdue %}
+                  Просрочено на {{ goal.days_left|stringformat:"d"|cut:"-" }} дн.
+                {% elif goal.days_left == 0 %}
+                  Сегодня срок
+                {% else %}
+                  Осталось {{ goal.days_left }} дн.
+                {% endif %}
+              </span>
+            {% else %}
+              <span><i data-lucide="infinity"></i>Без срока</span>
+            {% endif %}
+            <span><i data-lucide="users"></i>{{ goal.contributors_count }}</span>
+          </footer>
+        </a>
+      {% endfor %}
+    </section>
+  {% else %}
+    <section class="surface empty-state" data-reveal>
+      <i data-lucide="target" style="width:32px;height:32px;"></i>
+      <h3>Пока нет активных целей</h3>
+      <p class="meta">Создайте первую — отпуск, ремонт, подарок. Все вклады собираются в одном месте.</p>
+      <button class="btn" type="button" onclick="document.getElementById('goal-create').showModal()">
+        <i data-lucide="plus"></i>Создать цель
+      </button>
+    </section>
+  {% endif %}
+
+  {% if done_goals %}
+    <details class="surface goals-done" data-reveal>
+      <summary><strong>Завершённые цели</strong> <span class="meta">({{ done_count }})</span></summary>
+      <ul class="plain-list">
+        {% for goal in done_goals %}
+          <li>
+            <a href="{% url 'goal_detail' goal.id %}">
+              <i data-lucide="check-circle-2"></i>
+              <strong>{{ goal.title }}</strong>
+              <span class="meta">— {{ goal.collected|floatformat:0 }} / {{ goal.target_amount|floatformat:0 }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
+
+  <dialog id="goal-create" class="app-dialog">
+    <form method="post" class="surface">
+      {% csrf_token %}
+      <header class="app-dialog-head">
+        <h2>Новая цель</h2>
+        <button type="button" class="btn small secondary" onclick="document.getElementById('goal-create').close()" aria-label="Закрыть">
+          <i data-lucide="x"></i>
+        </button>
+      </header>
+      {% include "partials/form_fields.html" with form=form %}
+      <div class="card-actions">
+        <button class="btn" type="submit"><i data-lucide="check"></i>Создать</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('goal-create').close()">Отмена</button>
+      </div>
+    </form>
+  </dialog>
+{% endblock %}

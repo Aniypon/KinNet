@@ -1,0 +1,13 @@
+{% comment %}
+Usage: {% include "partials/section_header.html" with title="Заголовок" %}
+Relies on `active_family` from the active_family context processor.
+{% endcomment %}
+<div class="section-header">
+  {% if active_family %}
+    <div class="family-context">
+      <i data-lucide="users-round"></i>
+      <span>{{ active_family.name }}</span>
+    </div>
+  {% endif %}
+  {% if title %}<h1>{{ title }}</h1>{% endif %}
+</div>

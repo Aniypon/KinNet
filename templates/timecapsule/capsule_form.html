@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Новая капсула{% endblock %}
+{% block content %}
+{% include "partials/section_header.html" with title="Новая капсула" %}
+
+<section class="form-shell" style="max-width: 900px; margin: 0 auto;" data-reveal>
+  <form method="post" enctype="multipart/form-data" class="form-grid">
+    {% csrf_token %}
+    <input type="hidden" name="family" value="{{ family.id }}">
+    <div class="form-panel">
+      <label for="capsule-reveal">Раскрыть в</label>
+      <input id="capsule-reveal" name="reveal_at" type="text" data-mask="datetime" inputmode="numeric" autocomplete="off" placeholder="дд.мм.гггг чч:мм" required>
+      <p class="form-hint">Дата и время, когда капсула станет доступной.</p>
+    </div>
+    <div class="form-panel span-2">
+      <label for="capsule-title">Название</label>
+      <input id="capsule-title" name="title" required placeholder="Например: письмо на выпускной">
+    </div>
+    <div class="form-panel span-2">
+      <label for="capsule-message">Сообщение</label>
+      <textarea id="capsule-message" name="message" rows="6" placeholder="Напишите текст, который семья прочитает позже."></textarea>
+    </div>
+    <div class="form-panel span-2">
+      <label for="capsule-recipients">Получатели</label>
+      <select id="capsule-recipients" name="recipients_users" multiple>
+        {% for user in users %}
+          <option value="{{ user.id }}">{{ user.get_full_name|default:user.username }}</option>
+        {% endfor %}
+      </select>
+      <p class="form-hint">Если никого не выбрать, капсула будет видна семье после раскрытия.</p>
+    </div>
+    <div class="form-panel span-2">
+      <label for="capsule-media">Файл (опционально)</label>
+      <input id="capsule-media" name="media" type="file">
+      <p class="form-hint">Можно приложить фото, видео или документ.</p>
+    </div>
+    <button class="btn span-2" type="submit">Запланировать</button>
+  </form>
+</section>
+{% endblock %}

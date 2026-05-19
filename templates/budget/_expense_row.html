@@ -1,0 +1,25 @@
+{% load kinnet_roles %}
+{% url 'budget:expense_delete' expense.id as expense_delete_url %}
+<article class="card" id="expense-{{ expense.id }}" data-reveal
+         style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:0.75rem 1rem;">
+  <div style="min-width:0;flex:1;">
+    <div style="display:flex;gap:0.5rem;align-items:baseline;flex-wrap:wrap;">
+      <strong style="font-size:1rem;">{{ expense.title }}</strong>
+      {% if expense.category %}<span class="badge">{{ expense.category }}</span>{% endif %}
+    </div>
+    <p class="meta" style="margin:0.15rem 0 0;">
+      {{ expense.spent_on|date:"d.m.Y" }} · {{ expense.payer.first_name|default:expense.payer.username|default:"—" }}
+      {% if expense.notes %} · {{ expense.notes|truncatechars:60 }}{% endif %}
+    </p>
+  </div>
+  <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:0.3rem;">
+    <strong style="font-size:1.05rem;white-space:nowrap;">{{ expense.amount|floatformat:"0" }} ₽</strong>
+    {% role_gate "owner,admin" %}
+    <div style="display:flex;gap:0.6rem;align-items:center;" x-data="{ open: false }">
+      <a class="btn-link" href="{% url 'budget:expense_update' expense.id %}?family={{ expense.family_id }}" style="font-size:0.8rem;">Изменить</a>
+      <button class="btn-link danger" type="button" @click="open = true" style="font-size:0.8rem;">Удалить</button>
+      {% include "partials/confirm_dialog.html" with title="Удалить расход?" message="Это действие нельзя отменить." action_url=expense_delete_url danger=True %}
+    </div>
+    {% endrole_gate %}
+  </div>
+</article>

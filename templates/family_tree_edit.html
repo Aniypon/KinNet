@@ -1,0 +1,712 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование связей{% endblock %}
+
+{% block content %}
+  <section class="card" id="family-tree-meta" data-family-id="{{ family.id }}">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <h2 style="margin: 0;">Редактирование связей — {{ family.name }}</h2>
+      <a class="btn" href="/family-tree/graph/?family={{ family.id }}">Смотреть древо</a>
+      <button class="btn secondary" type="button" id="undo-tree" disabled>Отменить</button>
+      <button class="btn secondary" type="button" id="fit-tree">Привести в порядок</button>
+      <button class="btn secondary" type="button" id="clear-tree">Очистить дерево</button>
+      <button class="btn secondary" type="button" id="show-all">Показать всех</button>
+    </div>
+    <p class="meta">
+      Перетаскивайте участников из нижнего списка в дерево. На человека — чтобы создать пару,
+      на зону под человеком или парой — чтобы добавить ребёнка, в «Новый уровень» — чтобы поднять отдельно.
+    </p>
+  </section>
+
+  <section class="tree-editor-help surface" data-reveal>
+    <div>
+      <h3>Собирайте древо перетаскиванием</h3>
+      <p class="meta">Цели подсвечиваются во время drag. Система проверяет циклы, дубли, невозможных родителей и пары.</p>
+    </div>
+    <div class="tree-editor-help__steps">
+      <span><strong>1</strong> Новый уровень</span>
+      <span><strong>2</strong> На человека = пара</span>
+      <span><strong>3</strong> На зону ниже = ребёнок</span>
+    </div>
+    <div class="tree-status" id="tree-status" hidden></div>
+    <div class="tree-issues" id="tree-issues-list"></div>
+  </section>
+
+  <section class="card tree-drag-board" style="margin-top: 16px;">
+    <div class="tree-editor-controls">
+      <input id="tree-search" type="search" placeholder="Найти человека в древе">
+      <button class="btn secondary" type="button" id="zoom-out">−</button>
+      <button class="btn secondary" type="button" id="zoom-in">+</button>
+    </div>
+    <div id="tree-viewport" class="tree-viewport">
+      <div id="tree-container" class="tree"></div>
+    </div>
+    <div class="tree-minimap" id="tree-minimap" aria-hidden="true"></div>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h3>Участники семьи (не в дереве)</h3>
+    <div class="palette" id="palette">
+      {% for person in available_members %}
+        <div class="brick" draggable="true" data-id="{{ person.id }}">
+          {{ person }}
+        </div>
+      {% empty %}
+        <div class="meta">Все участники уже добавлены.</div>
+      {% endfor %}
+    </div>
+    <div class="meta" style="margin-top: 12px;">
+      Чтобы сделать новый уровень, перетащите участника в область «Новый уровень».
+    </div>
+    <div id="drop-root" class="drop-zone">Новый уровень</div>
+  </section>
+
+  {{ tree_data|json_script:"tree-data" }}
+  {{ tree_issues|json_script:"tree-issues" }}
+  <script>
+    const data = JSON.parse(document.getElementById("tree-data").textContent);
+    let treeIssues = JSON.parse(document.getElementById("tree-issues").textContent);
+    const issueMemberIds = new Set(treeIssues.map((issue) => issue.member_id).filter(Boolean));
+    const container = document.getElementById("tree-container");
+    const viewport = document.getElementById("tree-viewport");
+    const dropRoot = document.getElementById("drop-root");
+    const palette = document.getElementById("palette");
+    const familyId = Number(document.getElementById("family-tree-meta").dataset.familyId);
+    const treeStatus = document.getElementById("tree-status");
+    const treeIssuesList = document.getElementById("tree-issues-list");
+    const undoButton = document.getElementById("undo-tree");
+    const minimap = document.getElementById("tree-minimap");
+    const searchInput = document.getElementById("tree-search");
+    const undoStack = [];
+    let treeScale = 1;
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let i = 0; i < cookies.length; i += 1) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === `${name}=`) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    function setTreeStatus(message, kind = "ok") {
+      if (!treeStatus) return;
+      treeStatus.hidden = !message;
+      treeStatus.textContent = message || "";
+      treeStatus.className = `tree-status ${kind === "error" ? "is-error" : "is-ok"}`;
+    }
+
+    function snapshotTree() {
+      return data.map((item) => ({
+        id: item.id,
+        parent1: item.parent1,
+        parent2: item.parent2,
+        spouse: item.spouse,
+        in_tree: item.in_tree,
+      }));
+    }
+
+    function pushUndoSnapshot() {
+      undoStack.push(snapshotTree());
+      if (undoStack.length > 24) undoStack.shift();
+      undoButton.disabled = false;
+    }
+
+    async function postRelation(payload, options = {}) {
+      if (options.trackUndo !== false && payload.action !== "restore_tree") {
+        pushUndoSnapshot();
+      }
+      const response = await fetch("/family-tree/relations/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: JSON.stringify({ family: familyId, ...payload }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (options.trackUndo !== false && payload.action !== "restore_tree") {
+          undoStack.pop();
+          undoButton.disabled = undoStack.length === 0;
+        }
+        setTreeStatus(result.error || "Не удалось сохранить связь.", "error");
+        return null;
+      }
+      if (result.tree_data) {
+        data.length = 0;
+        result.tree_data.forEach((item) => data.push(item));
+        treeIssues = result.issues || [];
+        issueMemberIds.clear();
+        treeIssues.map((issue) => issue.member_id).filter(Boolean).forEach((id) => issueMemberIds.add(id));
+        renderPalette();
+        renderIssues();
+        buildTree();
+      }
+      setTreeStatus(payload.action === "restore_tree" ? "Отменено" : "Сохранено");
+      return result;
+    }
+
+    function memberLabel(item) {
+      return item.relation ? `${item.label} (${item.relation})` : item.label;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function renderIssues() {
+      if (!treeIssuesList) return;
+      treeIssuesList.innerHTML = treeIssues.length
+        ? treeIssues.map((issue) => `<div class="tree-issue">${escapeHtml(issue.message)}</div>`).join("")
+        : '<div class="tree-issue is-ok">Проверка прошла: явных проблем нет.</div>';
+    }
+
+    function renderPalette() {
+      const available = data.filter((item) => !item.in_tree);
+      palette.innerHTML = "";
+      if (!available.length) {
+        const empty = document.createElement("div");
+        empty.className = "meta";
+        empty.textContent = "Все участники уже добавлены.";
+        palette.appendChild(empty);
+        return;
+      }
+      available.forEach((item) => {
+        const brick = document.createElement("div");
+        brick.className = "brick";
+        brick.draggable = true;
+        brick.dataset.id = item.id;
+        brick.textContent = item.label;
+        palette.appendChild(brick);
+      });
+    }
+
+    function buildTree() {
+      const nodes = new Map();
+      const children = new Map();
+      const pairNodes = new Map();
+
+      const treeMembers = data.filter((item) => item.in_tree);
+
+      treeMembers.forEach((item) => nodes.set(item.id, item));
+
+      treeMembers.forEach((item) => {
+        if (item.spouse) {
+          const sorted = [item.id, item.spouse].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+        }
+      });
+
+      treeMembers.forEach((item) => {
+        const p1 = item.parent1;
+        const p2 = item.parent2;
+        if (p1 && p2) {
+          const sorted = [p1, p2].sort((a, b) => a - b);
+          const key = sorted.join("-");
+          if (!pairNodes.has(key)) {
+            pairNodes.set(key, { id: `pair-${key}`, parents: sorted });
+          }
+          const pairId = pairNodes.get(key).id;
+          if (!children.has(pairId)) children.set(pairId, []);
+          children.get(pairId).push(item.id);
+        } else if (p1 || p2) {
+          const parent = p1 || p2;
+          if (!children.has(parent)) children.set(parent, []);
+          children.get(parent).push(item.id);
+        }
+      });
+
+      function hasParents(item) {
+        return Boolean(item && (item.parent1 || item.parent2));
+      }
+
+      function spouseOf(item) {
+        return item && item.spouse ? nodes.get(item.spouse) : null;
+      }
+
+      const roots = treeMembers
+        .filter((item) => {
+          const spouse = spouseOf(item);
+          if (!spouse) return !hasParents(item);
+          return item.id < spouse.id && !hasParents(item) && !hasParents(spouse);
+        })
+        .map((item) => item.id);
+
+      function createNode(label, type, extra = {}) {
+        const div = document.createElement("div");
+        div.className = `node ${type}`;
+        div.textContent = label;
+        if (extra.type) div.dataset.type = extra.type;
+        if (extra.id) div.dataset.id = extra.id;
+        if (extra.parent1) div.dataset.parent1 = extra.parent1;
+        if (extra.parent2) div.dataset.parent2 = extra.parent2;
+        if (extra.id && issueMemberIds.has(Number(extra.id))) div.classList.add("has-issue");
+        return div;
+      }
+
+      function createLiForPerson(id) {
+        let person = nodes.get(id);
+        if (!person) return null;
+        const spouseId = person.spouse;
+        if (spouseId && person.id > spouseId && nodes.has(spouseId)) {
+          person = nodes.get(spouseId);
+        }
+
+        const li = document.createElement("li");
+        li.className = "tree-item";
+
+        if (spouseId) {
+          const spouse = nodes.get(person.spouse);
+          if (!spouse) return null;
+          const pairLabel = `${person.label} + ${spouse.label}`;
+          const pairKey = [person.id, spouse.id].sort((a, b) => a - b).join("-");
+          const pairId = `pair-${pairKey}`;
+          const pairNode = createNode(pairLabel, "pair", {
+            type: "pair",
+            parent1: person.id,
+            parent2: spouse.id,
+            id: pairId,
+          });
+          li.appendChild(pairNode);
+
+          const unpairButton = document.createElement("button");
+          unpairButton.className = "btn secondary";
+          unpairButton.type = "button";
+          unpairButton.textContent = "Разъединить пару";
+          unpairButton.addEventListener("click", () => {
+            postRelation({ action: "unpair", member: person.id });
+          });
+          const removeButton = document.createElement("button");
+          removeButton.className = "btn secondary";
+          removeButton.type = "button";
+          removeButton.textContent = "Удалить из дерева";
+          removeButton.addEventListener("click", () => {
+            postRelation({ action: "remove_from_tree", member: person.id });
+          });
+          const buttonWrap = document.createElement("div");
+          buttonWrap.style.marginTop = "6px";
+          buttonWrap.style.display = "flex";
+          buttonWrap.style.gap = "6px";
+          buttonWrap.appendChild(unpairButton);
+          buttonWrap.appendChild(removeButton);
+          li.appendChild(buttonWrap);
+
+          const childZone = document.createElement("div");
+          childZone.className = "child-zone";
+          childZone.textContent = "Добавить ребёнка";
+          childZone.dataset.parent1 = person.id;
+          childZone.dataset.parent2 = spouse.id;
+          li.appendChild(childZone);
+
+          const pairChildren = children.get(pairId) || [];
+          if (pairChildren.length) {
+            const ul = document.createElement("ul");
+            pairChildren.forEach((childId) => {
+              const childLi = createLiForPerson(childId);
+              if (childLi) ul.appendChild(childLi);
+            });
+            li.appendChild(ul);
+          }
+          return li;
+        }
+
+        const label = person.relation ? `${person.label} (${person.relation})` : person.label;
+        const node = createNode(label, "person", { type: "person", id: person.id });
+        li.appendChild(node);
+
+        const removeButton = document.createElement("button");
+        removeButton.className = "btn secondary";
+        removeButton.type = "button";
+        removeButton.textContent = "Удалить из дерева";
+        removeButton.addEventListener("click", () => {
+          postRelation({ action: "remove_from_tree", member: person.id });
+        });
+        const buttonWrap = document.createElement("div");
+        buttonWrap.style.marginTop = "6px";
+        buttonWrap.appendChild(removeButton);
+        li.appendChild(buttonWrap);
+
+        const childZone = document.createElement("div");
+        childZone.className = "child-zone";
+        childZone.textContent = "Добавить ребёнка";
+        childZone.dataset.parent = person.id;
+        li.appendChild(childZone);
+
+        const childIds = children.get(id) || [];
+        if (childIds.length) {
+          const ul = document.createElement("ul");
+          childIds.forEach((childId) => {
+            const childLi = createLiForPerson(childId);
+            if (childLi) ul.appendChild(childLi);
+          });
+          li.appendChild(ul);
+        }
+        return li;
+      }
+
+      const rootUl = document.createElement("ul");
+      const rootLi = document.createElement("li");
+      rootLi.appendChild(createNode("{{ family.name }}", "root"));
+      const rootChildrenUl = document.createElement("ul");
+      roots.forEach((rootId) => {
+        const li = createLiForPerson(rootId);
+        if (li) rootChildrenUl.appendChild(li);
+      });
+      rootLi.appendChild(rootChildrenUl);
+      rootUl.appendChild(rootLi);
+      container.innerHTML = "";
+      container.appendChild(rootUl);
+      applyTreeScale();
+      renderMinimap();
+
+      bindDropTargets();
+    }
+
+    function renderMinimap() {
+      if (!minimap) return;
+      minimap.innerHTML = "";
+      const clone = container.firstElementChild?.cloneNode(true);
+      if (!clone) return;
+      minimap.appendChild(clone);
+      const rect = container.firstElementChild.getBoundingClientRect();
+      const scale = Math.min(0.18, 160 / Math.max(rect.width, 1));
+      clone.style.transform = `scale(${scale})`;
+      clone.style.transformOrigin = "top left";
+      minimap.style.height = `${Math.max(76, Math.min(128, rect.height * scale + 16))}px`;
+    }
+
+    function applyTreeScale() {
+      container.style.transform = `scale(${treeScale})`;
+      container.style.transformOrigin = "top center";
+    }
+
+    function setTreeScale(nextScale) {
+      treeScale = Math.min(1.6, Math.max(0.55, nextScale));
+      applyTreeScale();
+      renderMinimap();
+    }
+
+    function fitTree() {
+      const width = container.firstElementChild?.scrollWidth || viewport.clientWidth;
+      const nextScale = Math.min(1, Math.max(0.55, (viewport.clientWidth - 40) / Math.max(width, 1)));
+      setTreeScale(nextScale);
+      viewport.scrollTo({ left: Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2), top: 0, behavior: "smooth" });
+      setTreeStatus("Древо выровнено");
+    }
+
+    function focusTreeNode(query) {
+      document.querySelectorAll(".node.is-search-match").forEach((node) => node.classList.remove("is-search-match"));
+      const value = query.trim().toLowerCase();
+      if (!value) return;
+      const node = [...document.querySelectorAll(".node")].find((item) => item.textContent.toLowerCase().includes(value));
+      if (!node) {
+        setTreeStatus("Не нашёл такого человека", "error");
+        return;
+      }
+      node.classList.add("is-search-match");
+      node.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+    }
+
+    function bindDropTargets() {
+      const bricks = document.querySelectorAll(".brick");
+      bricks.forEach((brick) => {
+        brick.addEventListener("dragstart", (event) => {
+          event.dataTransfer.setData("text/plain", brick.dataset.id);
+          document.querySelectorAll(".node.person").forEach((node) => node.classList.add("drop-highlight"));
+          document.querySelectorAll(".child-zone").forEach((zone) => zone.classList.add("drop-highlight"));
+          dropRoot.classList.add("drop-highlight");
+        });
+        brick.addEventListener("dragend", () => {
+          document.querySelectorAll(".node.person").forEach((node) => node.classList.remove("drop-highlight"));
+          document.querySelectorAll(".child-zone").forEach((zone) => zone.classList.remove("drop-highlight"));
+          dropRoot.classList.remove("drop-highlight");
+        });
+      });
+
+      const personNodes = document.querySelectorAll(".node.person");
+      const childZones = document.querySelectorAll(".child-zone");
+
+      personNodes.forEach((node) => {
+          node.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            node.classList.add("drop-highlight");
+          });
+          node.addEventListener("dragleave", () => {
+            node.classList.remove("drop-highlight");
+          });
+        node.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+          const targetId = parseInt(node.dataset.id, 10);
+          if (!draggedId || draggedId === targetId) return;
+            node.classList.remove("drop-highlight");
+          postRelation({ action: "pair", memberA: draggedId, memberB: targetId });
+        });
+      });
+
+      childZones.forEach((zone) => {
+          zone.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            zone.classList.add("drop-highlight");
+          });
+          zone.addEventListener("dragleave", () => {
+            zone.classList.remove("drop-highlight");
+          });
+        zone.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+          if (!draggedId) return;
+          const parent1 = zone.dataset.parent1 ? parseInt(zone.dataset.parent1, 10) : null;
+          const parent2 = zone.dataset.parent2 ? parseInt(zone.dataset.parent2, 10) : null;
+            zone.classList.remove("drop-highlight");
+          if (parent1 && parent2) {
+            postRelation({ action: "add_child", child: draggedId, parent1, parent2 });
+          } else if (zone.dataset.parent) {
+            postRelation({ action: "set_parent", child: draggedId, parent: parseInt(zone.dataset.parent, 10) });
+          }
+        });
+      });
+
+        dropRoot.ondragover = (event) => {
+          event.preventDefault();
+          dropRoot.classList.add("drop-highlight");
+        };
+        dropRoot.ondragleave = () => {
+          dropRoot.classList.remove("drop-highlight");
+        };
+      dropRoot.ondrop = (event) => {
+        event.preventDefault();
+        const draggedId = parseInt(event.dataTransfer.getData("text/plain"), 10);
+        if (!draggedId) return;
+          dropRoot.classList.remove("drop-highlight");
+        postRelation({ action: "clear_parents", member: draggedId });
+      };
+    }
+
+    renderPalette();
+    renderIssues();
+    buildTree();
+
+    document.getElementById("clear-tree").addEventListener("click", () => {
+      postRelation({ action: "clear_tree" });
+    });
+    document.getElementById("show-all").addEventListener("click", () => {
+      postRelation({ action: "show_all" });
+    });
+    document.getElementById("fit-tree").addEventListener("click", fitTree);
+    document.getElementById("zoom-in").addEventListener("click", () => setTreeScale(treeScale + 0.12));
+    document.getElementById("zoom-out").addEventListener("click", () => setTreeScale(treeScale - 0.12));
+    searchInput.addEventListener("input", () => focusTreeNode(searchInput.value));
+    let isPanning = false;
+    let panStartX = 0;
+    let panStartY = 0;
+    let panScrollLeft = 0;
+    let panScrollTop = 0;
+    viewport.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("button, input, .brick, .child-zone, .node")) return;
+      isPanning = true;
+      panStartX = event.clientX;
+      panStartY = event.clientY;
+      panScrollLeft = viewport.scrollLeft;
+      panScrollTop = viewport.scrollTop;
+      viewport.setPointerCapture(event.pointerId);
+      viewport.classList.add("is-panning");
+    });
+    viewport.addEventListener("pointermove", (event) => {
+      if (!isPanning) return;
+      viewport.scrollLeft = panScrollLeft - (event.clientX - panStartX);
+      viewport.scrollTop = panScrollTop - (event.clientY - panStartY);
+    });
+    viewport.addEventListener("pointerup", () => {
+      isPanning = false;
+      viewport.classList.remove("is-panning");
+    });
+    undoButton.addEventListener("click", () => {
+      const snapshot = undoStack.pop();
+      undoButton.disabled = undoStack.length === 0;
+      if (!snapshot) return;
+      postRelation({ action: "restore_tree", snapshot }, { trackUndo: false });
+    });
+    minimap?.addEventListener("click", () => {
+      container.scrollTo({
+        left: Math.max(0, (container.scrollWidth - container.clientWidth) / 2),
+        behavior: "smooth",
+      });
+    });
+  </script>
+
+  <style>
+    .palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .brick {
+      padding: 8px 12px;
+      background: color-mix(in srgb, var(--accent-2) 18%, var(--surface-strong));
+      color: var(--text);
+      border: 1px solid color-mix(in srgb, var(--accent-2) 36%, var(--line));
+      border-radius: var(--radius);
+      cursor: grab;
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: var(--shadow-soft);
+    }
+    .drop-zone {
+      margin-top: 10px;
+      padding: 14px 16px;
+      border: 2px dashed color-mix(in srgb, var(--accent) 48%, var(--line));
+      border-radius: var(--radius);
+      text-align: center;
+      color: var(--text);
+      font-weight: 900;
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+    }
+    .drop-highlight {
+      outline: 3px solid color-mix(in srgb, var(--accent) 56%, transparent);
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+    }
+    .child-zone {
+      margin: 6px auto 0;
+      padding: 6px 10px;
+      border: 1px dashed color-mix(in srgb, var(--accent-2) 58%, var(--line));
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 900;
+      width: max-content;
+      background: color-mix(in srgb, var(--accent-2) 10%, transparent);
+    }
+    .tree {
+      display: inline-block;
+      min-width: 100%;
+      padding: 10px;
+      transition: transform 180ms ease;
+    }
+    .tree-viewport {
+      min-height: 420px;
+      overflow: auto;
+      cursor: grab;
+    }
+    .tree-viewport.is-panning {
+      cursor: grabbing;
+      user-select: none;
+    }
+    .tree-editor-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .tree-editor-controls input {
+      min-width: min(420px, 100%);
+      flex: 1;
+    }
+    .tree ul {
+      padding-top: 20px;
+      position: relative;
+      padding-left: 0;
+      display: flex;
+      justify-content: center;
+    }
+    .tree li {
+      list-style-type: none;
+      text-align: center;
+      margin: 0 20px;
+      position: relative;
+      padding: 20px 5px 0 5px;
+    }
+    .tree li::before,
+    .tree li::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 50%;
+      border-top: 2px solid color-mix(in srgb, var(--accent-2) 46%, var(--line));
+      width: 50%;
+      height: 20px;
+    }
+    .tree li::after {
+      right: auto;
+      left: 50%;
+      border-left: 2px solid color-mix(in srgb, var(--accent-2) 46%, var(--line));
+      width: 50%;
+    }
+    .tree li:only-child::after,
+    .tree li:only-child::before {
+      display: none;
+    }
+    .tree li:only-child {
+      padding-top: 0;
+    }
+    .tree li:first-child::before,
+    .tree li:last-child::after {
+      border: 0 none;
+    }
+    .tree li:last-child::before {
+      border-right: 2px solid color-mix(in srgb, var(--accent-2) 46%, var(--line));
+      border-radius: 0 5px 0 0;
+    }
+    .tree li:first-child::after {
+      border-radius: 5px 0 0 0;
+    }
+    .tree ul ul::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      border-left: 2px solid color-mix(in srgb, var(--accent-2) 46%, var(--line));
+      width: 0;
+      height: 20px;
+    }
+    .node {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+      font-weight: 900;
+      min-width: 140px;
+    }
+    .node.root {
+      background: linear-gradient(135deg, var(--accent), #9f5138);
+      color: white;
+    }
+    .node.person {
+      background: linear-gradient(135deg, var(--accent-3), var(--accent-2));
+      color: white;
+    }
+    .node.has-issue {
+      outline: 4px solid color-mix(in srgb, var(--danger) 62%, transparent);
+    }
+    .node.is-search-match {
+      outline: 4px solid color-mix(in srgb, var(--accent) 70%, transparent);
+      box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow-soft);
+    }
+    .node.pair {
+      background: linear-gradient(135deg, var(--text), color-mix(in srgb, var(--accent) 24%, var(--text)));
+      color: white;
+    }
+    .tree-actions {
+      display: flex;
+      gap: 8px;
+    }
+  </style>
+{% endblock %}

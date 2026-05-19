@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+  <section class="page-hero" data-reveal>
+    <span class="kicker">данные семьи</span>
+    <h1>{{ title }}</h1>
+    <p>Аккуратные сведения помогают KinNet напоминать о важных датах и связях.</p>
+  </section>
+
+  <section class="form-shell" style="max-width: 760px; margin: 0 auto;" data-reveal>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% if title == "Мои данные" %}
+        {% include "partials/profile_form_fields.html" with form=form %}
+      {% else %}
+        {% include "partials/form_fields.html" with form=form %}
+      {% endif %}
+      <div class="form-actions-sticky">
+        <button class="btn" type="submit">Сохранить</button>
+        {% if delete_url %}
+          <details class="danger-menu">
+            <summary class="btn secondary">Ещё</summary>
+            <button class="danger-link" type="submit" form="entity-delete-form">{{ delete_label|default:"Удалить" }}</button>
+          </details>
+        {% endif %}
+      </div>
+    </form>
+    {% if delete_url %}
+      <form id="entity-delete-form" method="post" action="{{ delete_url }}">
+        {% csrf_token %}
+      </form>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ recipe.title }} — KinNet{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>{{ recipe.title }}</h1>
+  <p class="meta">{{ recipe.family.name }} · {{ recipe.cook_time_minutes }} мин · {{ recipe.servings }} порций</p>
+  <div class="card-actions">
+    <a class="btn secondary small" href="{% url 'cookbook:recipe_update' recipe.id %}">Изменить</a>
+  </div>
+  {% if recipe.description %}<p>{{ recipe.description }}</p>{% endif %}
+
+  <h3>Ингредиенты</h3>
+  <ul>
+    {% for ing in recipe.ingredients.all %}
+      <li>{{ ing.name }} — {{ ing.quantity }} {{ ing.unit }}</li>
+    {% empty %}<li>Нет ингредиентов</li>{% endfor %}
+  </ul>
+
+  {% if recipe.instructions %}
+    <h3>Инструкция</h3>
+    <p style="white-space:pre-wrap;">{{ recipe.instructions }}</p>
+  {% endif %}
+
+  <form method="post" action="{% url 'cookbook:recipe_to_shopping_list' recipe.id %}" style="margin-top:16px;">
+    {% csrf_token %}
+    <button class="btn" type="submit">→ В список покупок (создать задачу)</button>
+  </form>
+</section>
+{% endblock %}

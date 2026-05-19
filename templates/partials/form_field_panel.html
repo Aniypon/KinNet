@@ -1,0 +1,10 @@
+<div class="form-panel{% if field.errors %} has-error{% endif %}">
+  {{ field.label_tag }}
+  {{ field }}
+  {% if field.help_text %}
+    <p class="form-hint">{{ field.help_text }}</p>
+  {% endif %}
+  {% if field.errors %}
+    <div class="form-errors">{{ field.errors }}</div>
+  {% endif %}
+</div>

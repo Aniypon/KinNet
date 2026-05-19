@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% block title %}Семейное древо — KinNet{% endblock %}
+{% block content %}
+<section class="page-hero" data-reveal>
+  <span class="kicker">живые связи</span>
+  <h1>Семейное древо</h1>
+  <p>Зум, перетаскивание и переходы в профили. Связи читаются как карта семьи, а не как схема из админки.</p>
+</section>
+
+<section class="tree-graph-shell surface" data-reveal>
+  <div class="tree-graph-toolbar">
+    <span class="badge family">родители</span>
+    <span class="badge birthday">пара</span>
+    {% if can_manage %}
+      <a class="tree-toolbar-action" href="/family-tree/edit/?family={{ current_family.id }}">
+        <i data-lucide="network"></i>
+        Собрать древо
+      </a>
+    {% endif %}
+    <span id="tree-focus-label" class="tree-focus-label" hidden></span>
+    <button id="tree-focus-reset" class="tree-focus-reset" type="button" hidden>Сбросить фокус</button>
+    <span class="meta">Колесо — зум, перетаскивание — навигация</span>
+  </div>
+
+  {% if current_family and members_data %}
+    <div id="tree-graph"></div>
+  {% elif current_family %}
+    <div class="empty-state tree-empty-state">
+      <div>
+        <strong>Древо пока пустое</strong>
+        <p class="meta">Добавьте родственников и соберите первые связи.</p>
+        <div class="card-actions">
+          <a class="btn" href="/members/?family={{ current_family.id }}"><i data-lucide="users-round"></i>Добавить родственников</a>
+          {% if can_manage %}
+            <a class="btn secondary" href="/family-tree/edit/?family={{ current_family.id }}"><i data-lucide="network"></i>Собрать древо</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="empty-state">У вас пока нет семей.</div>
+  {% endif %}
+</section>
+
+{% if current_family and members_data %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+{{ members_data|json_script:"members-data" }}
+<script>
+  (function () {
+    const data = JSON.parse(document.getElementById("members-data").textContent || "[]");
+    const container = document.getElementById("tree-graph");
+    if (!container || !data.length) return;
+
+    const width = container.clientWidth;
+    const idMap = new Map(data.map((m) => [m.id, m]));
+
+    const links = [];
+    data.forEach((member) => {
+      [member.parent1_id, member.parent2_id].forEach((pid) => {
+        if (pid && idMap.has(pid)) links.push({ source: pid, target: member.id, kind: "parent" });
+      });
+      if (member.spouse_id && idMap.has(member.spouse_id) && member.id < member.spouse_id) {
+        links.push({ source: member.id, target: member.spouse_id, kind: "spouse" });
+      }
+    });
+    const parentLinks = links.filter((link) => link.kind === "parent");
+    const spouseLinks = links.filter((link) => link.kind === "spouse");
+    const childrenByParent = new Map();
+    const spousesByMember = new Map();
+    const addGroupedId = (map, key, value) => {
+      if (!key || !value) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(value);
+    };
+    data.forEach((member) => {
+      [member.parent1_id, member.parent2_id].forEach((pid) => addGroupedId(childrenByParent, pid, member.id));
+      if (member.spouse_id && idMap.has(member.spouse_id)) {
+        addGroupedId(spousesByMember, member.id, member.spouse_id);
+        addGroupedId(spousesByMember, member.spouse_id, member.id);
+      }
+    });
+
+    const depthMemo = new Map();
+    const depthOf = (member, seen = new Set()) => {
+      if (!member || seen.has(member.id)) return 0;
+      if (depthMemo.has(member.id)) return depthMemo.get(member.id);
+      seen.add(member.id);
+      const parents = [member.parent1_id, member.parent2_id]
+        .map((id) => idMap.get(id))
+        .filter(Boolean);
+      const depth = parents.length ? Math.max(...parents.map((parent) => depthOf(parent, seen))) + 1 : 0;
+      depthMemo.set(member.id, depth);
+      return depth;
+    };
+    data.forEach((member) => {
+      member.depth = depthOf(member);
+      if (member.spouse_id && idMap.has(member.spouse_id)) {
+        const spouse = idMap.get(member.spouse_id);
+        const sharedDepth = Math.max(member.depth, depthOf(spouse));
+        member.depth = sharedDepth;
+        spouse.depth = sharedDepth;
+      }
+    });
+    const levels = d3.group(data, (member) => member.depth || 0);
+    const parentSortValue = (member) => Math.min(member.parent1_id || Infinity, member.parent2_id || Infinity);
+    levels.forEach((members) => {
+      members.sort((a, b) => {
+        return parentSortValue(a) - parentSortValue(b) || (a.display_order || 0) - (b.display_order || 0) || a.id - b.id;
+      });
+    });
+    const levelUnits = new Map();
+    levels.forEach((members, depth) => {
+      const membersOnLevel = new Set(members.map((member) => member.id));
+      const visited = new Set();
+      const units = [];
+      members.forEach((member) => {
+        if (visited.has(member.id)) return;
+        const spouse = member.spouse_id && idMap.get(member.spouse_id);
+        if (spouse && membersOnLevel.has(spouse.id) && !visited.has(spouse.id)) {
+          const pair = [member, spouse].sort((a, b) => (a.display_order || 0) - (b.display_order || 0) || a.id - b.id);
+          units.push({ kind: "couple", members: pair, sort: Math.min(parentSortValue(pair[0]), parentSortValue(pair[1])) });
+          visited.add(pair[0].id);
+          visited.add(pair[1].id);
+        } else {
+          units.push({ kind: "single", members: [member], sort: parentSortValue(member) });
+          visited.add(member.id);
+        }
+      });
+      units.sort((a, b) => a.sort - b.sort || (a.members[0].display_order || 0) - (b.members[0].display_order || 0) || a.members[0].id - b.members[0].id);
+      levelUnits.set(depth, units);
+    });
+    const maxDepth = Math.max(...data.map((member) => member.depth || 0), 0);
+    const maxLevelCount = Math.max(...Array.from(levelUnits.values()).map((units) => units.length), 1);
+    const generationGap = 170;
+    const topPadding = 165;
+    const sidePadding = 120;
+    const height = Math.max(container.clientHeight, 700, (maxDepth + 1) * generationGap + 190);
+    const canvasWidth = Math.max(width, maxLevelCount * 190 + sidePadding * 2);
+    container.style.minHeight = `${height}px`;
+    const themeStyles = getComputedStyle(document.documentElement);
+    const labelColor = themeStyles.getPropertyValue("--text").trim() || "#2f261f";
+    const labelHalo = themeStyles.getPropertyValue("--surface-strong").trim() || "#fffaf2";
+
+    levelUnits.forEach((units, depth) => {
+      const gap = units.length > 1 ? (canvasWidth - sidePadding * 2) / (units.length - 1) : 0;
+      units.forEach((unit, index) => {
+        const centerX = units.length === 1 ? canvasWidth / 2 : sidePadding + index * gap;
+        const pairOffset = unit.kind === "couple" ? 56 : 0;
+        unit.members.forEach((member, memberIndex) => {
+          const side = unit.kind === "couple" ? (memberIndex === 0 ? -1 : 1) : 0;
+          member.coupleUnit = unit.kind === "couple";
+          member.levelY = topPadding + depth * generationGap;
+          member.anchorX = centerX + side * pairOffset;
+          member.x = member.anchorX;
+          member.y = member.levelY;
+          member.floatSeed = (member.id % 17) * 0.43;
+        });
+      });
+    });
+
+    data.forEach((member) => {
+      if (!member.levelY) {
+        member.levelY = topPadding + (member.depth || 0) * generationGap;
+        member.anchorX = member.anchorX || canvasWidth / 2;
+        member.x = member.anchorX;
+        member.y = member.levelY;
+        member.floatSeed = (member.id % 17) * 0.43;
+      }
+    });
+
+    const svg = d3.select(container).append("svg")
+      .attr("width", "100%").attr("height", height)
+      .attr("viewBox", [0, 0, canvasWidth, height]);
+    const g = svg.append("g");
+
+    const isDarkTheme = () => document.documentElement.getAttribute("data-theme") === "dark";
+    const linkColors = () => isDarkTheme()
+      ? { parentHalo: "rgba(245, 240, 230, 0.55)", parent: "#e8efe4", spouseHalo: "rgba(245, 240, 230, 0.45)", spouse: "#ffd7c4" }
+      : { parentHalo: "#18110c", parent: "#347257", spouseHalo: "#18110c", spouse: "#c8684b" };
+
+    const zoom = d3.zoom()
+      .scaleExtent([0.45, 2.8])
+      .on("zoom", (event) => g.attr("transform", event.transform));
+    svg.call(zoom);
+    if (canvasWidth > width) {
+      svg.call(zoom.transform, d3.zoomIdentity.translate((width - canvasWidth) / 2, 0).scale(1));
+    }
+
+    const generationLayer = g.append("g").attr("pointer-events", "none");
+    for (let depth = 0; depth <= maxDepth; depth += 1) {
+      const y = topPadding + depth * generationGap;
+      generationLayer.append("line")
+        .attr("x1", 70).attr("x2", canvasWidth - 70)
+        .attr("y1", y).attr("y2", y)
+        .attr("stroke", "currentColor")
+        .attr("stroke-opacity", 0.12)
+        .attr("stroke-dasharray", "2 10");
+      generationLayer.append("text")
+        .attr("class", "tree-generation-label")
+        .attr("x", 78).attr("y", y - 46)
+        .text(`${depth + 1} поколение`);
+    }
+
+    const sim = d3.forceSimulation(data)
+      .force("link", d3.forceLink(parentLinks).id((d) => d.id).distance(126).strength(0.24))
+      .force("charge", d3.forceManyBody().strength(-260))
+      .force("x", d3.forceX((d) => d.anchorX).strength((d) => d.coupleUnit ? 0.82 : 0.3))
+      .force("y", d3.forceY((d) => d.levelY).strength(1))
+      .force("collide", d3.forceCollide(66))
+      .stop();
+    for (let i = 0; i < 260; i += 1) {
+      sim.tick();
+      data.forEach((member) => {
+        member.y = member.levelY;
+        member.x = Math.max(70, Math.min(canvasWidth - 70, member.x));
+      });
+    }
+
+    const colors = linkColors();
+
+    const parentLinkHalo = g.append("g").selectAll("line.parent-link-halo")
+      .data(parentLinks).join("line")
+      .attr("class", "tree-link parent-link-halo")
+      .attr("stroke", colors.parentHalo)
+      .attr("stroke-opacity", 0.22)
+      .attr("stroke-width", 6)
+      .attr("stroke-linecap", "round");
+
+    const parentLink = g.append("g").selectAll("line.parent-link")
+      .data(parentLinks).join("line")
+      .attr("class", "tree-link parent-link")
+      .attr("stroke", colors.parent)
+      .attr("stroke-opacity", 0.98)
+      .attr("stroke-width", 2.6)
+      .attr("stroke-linecap", "round");
+
+    const spouseLinkHalo = g.append("g").selectAll("path.spouse-halo")
+      .data(spouseLinks).join("path")
+      .attr("class", "spouse-halo")
+      .attr("fill", "none")
+      .attr("stroke", colors.spouseHalo)
+      .attr("stroke-width", 8)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-opacity", 0.22);
+
+    const spouseLink = g.append("g").selectAll("path.spouse-link")
+      .data(spouseLinks).join("path")
+      .attr("class", "spouse-link")
+      .attr("fill", "none")
+      .attr("stroke", colors.spouse)
+      .attr("stroke-width", 4.4)
+      .attr("stroke-linecap", "round")
+      .attr("stroke-dasharray", "1 9")
+      .attr("stroke-opacity", 0.92);
+
+    const themeObserver = new MutationObserver(() => {
+      const c = linkColors();
+      parentLinkHalo.attr("stroke", c.parentHalo);
+      parentLink.attr("stroke", c.parent);
+      spouseLinkHalo.attr("stroke", c.spouseHalo);
+      spouseLink.attr("stroke", c.spouse);
+    });
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+    const focusLabel = document.getElementById("tree-focus-label");
+    const focusReset = document.getElementById("tree-focus-reset");
+    const focusState = {
+      id: null,
+      nodeIds: new Set(),
+      linkKeys: new Set(),
+    };
+    const nodeId = (value) => typeof value === "object" ? value.id : value;
+    const memberName = (member) => `${member.first_name} ${member.last_name || ""}`.trim();
+    const linkKey = (sourceId, targetId, kind) => {
+      if (kind === "spouse") {
+        return `spouse:${Math.min(sourceId, targetId)}-${Math.max(sourceId, targetId)}`;
+      }
+      return `parent:${sourceId}-${targetId}`;
+    };
+    const linkIsFocused = (link) => focusState.linkKeys.has(linkKey(nodeId(link.source), nodeId(link.target), link.kind));
+
+    function applyFocusState() {
+      const hasFocus = Boolean(focusState.id);
+      container.classList.toggle("tree-graph--focus", hasFocus);
+      generationLayer.attr("opacity", hasFocus ? 0.34 : 1);
+      node
+        .classed("is-focused", (d) => hasFocus && d.id === focusState.id)
+        .classed("is-related", (d) => hasFocus && d.id !== focusState.id && focusState.nodeIds.has(d.id))
+        .classed("is-muted", (d) => hasFocus && !focusState.nodeIds.has(d.id))
+        .attr("aria-pressed", (d) => hasFocus && d.id === focusState.id ? "true" : "false");
+      parentLink
+        .classed("is-focused", (d) => hasFocus && linkIsFocused(d))
+        .classed("is-muted", (d) => hasFocus && !linkIsFocused(d))
+        .attr("stroke-opacity", (d) => hasFocus ? (linkIsFocused(d) ? 1 : 0.1) : 0.98)
+        .attr("stroke-width", (d) => hasFocus && linkIsFocused(d) ? 3.2 : 2.6);
+      parentLinkHalo
+        .classed("is-muted", (d) => hasFocus && !linkIsFocused(d))
+        .attr("stroke-opacity", (d) => hasFocus ? (linkIsFocused(d) ? 0.34 : 0.05) : 0.22);
+      spouseLink
+        .classed("is-focused", (d) => hasFocus && linkIsFocused(d))
+        .classed("is-muted", (d) => hasFocus && !linkIsFocused(d))
+        .attr("stroke-opacity", (d) => hasFocus ? (linkIsFocused(d) ? 1 : 0.1) : 0.92)
+        .attr("stroke-width", (d) => hasFocus && linkIsFocused(d) ? 5.2 : 4.4);
+      spouseLinkHalo
+        .classed("is-muted", (d) => hasFocus && !linkIsFocused(d))
+        .attr("stroke-opacity", (d) => hasFocus ? (linkIsFocused(d) ? 0.34 : 0.05) : 0.22);
+      if (focusLabel && focusReset) {
+        focusLabel.hidden = !hasFocus;
+        focusReset.hidden = !hasFocus;
+        focusLabel.textContent = hasFocus ? `Фокус: ${memberName(idMap.get(focusState.id))}` : "";
+      }
+    }
+
+    function clearFocus() {
+      focusState.id = null;
+      focusState.nodeIds = new Set();
+      focusState.linkKeys = new Set();
+      applyFocusState();
+    }
+
+    function setFocus(member) {
+      if (focusState.id === member.id) {
+        clearFocus();
+        return;
+      }
+      const nodeIds = new Set([member.id]);
+      const linkKeys = new Set();
+      [member.parent1_id, member.parent2_id].forEach((parentId) => {
+        if (!idMap.has(parentId)) return;
+        nodeIds.add(parentId);
+        linkKeys.add(linkKey(parentId, member.id, "parent"));
+      });
+      (childrenByParent.get(member.id) || []).forEach((childId) => {
+        nodeIds.add(childId);
+        linkKeys.add(linkKey(member.id, childId, "parent"));
+      });
+      (spousesByMember.get(member.id) || []).forEach((spouseId) => {
+        nodeIds.add(spouseId);
+        linkKeys.add(linkKey(member.id, spouseId, "spouse"));
+      });
+      focusState.id = member.id;
+      focusState.nodeIds = nodeIds;
+      focusState.linkKeys = linkKeys;
+      applyFocusState();
+    }
+
+    const node = g.append("g").selectAll("g.node")
+      .data(data).join("g")
+      .attr("class", "node")
+      .attr("role", "button")
+      .attr("tabindex", 0)
+      .attr("aria-label", (d) => `Фокус на ${memberName(d)}`)
+      .attr("aria-pressed", "false")
+      .style("cursor", "pointer")
+      .call(d3.drag()
+        .on("start", (event, d) => { d.dragging = true; d.x = event.x; })
+        .on("drag", (event, d) => {
+          const nextX = Math.max(70, Math.min(canvasWidth - 70, event.x));
+          const dx = nextX - d.x;
+          d.x = nextX;
+          const spouse = d.spouse_id && idMap.get(d.spouse_id);
+          if (spouse && spouse.depth === d.depth && d.coupleUnit && spouse.coupleUnit) {
+            spouse.x = Math.max(70, Math.min(canvasWidth - 70, spouse.x + dx));
+          }
+          d.levelY = topPadding + (d.depth || 0) * generationGap;
+          render(performance.now());
+        })
+        .on("end", (event, d) => { d.dragging = false; })
+      )
+      .on("click", (event, d) => {
+        event.stopPropagation();
+        if (event.defaultPrevented || d.dragging) return;
+        setFocus(d);
+      })
+      .on("dblclick", (event, d) => {
+        event.stopPropagation();
+        window.location.href = `/members/${d.id}/`;
+      })
+      .on("keydown", (event, d) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        setFocus(d);
+      });
+
+    node.append("circle")
+      .attr("r", 31)
+      .attr("fill", (d) => d.spouse_id ? "#ffd8d1" : "#fffaf2")
+      .attr("stroke", (d) => d.spouse_id ? "#c8684b" : "#809978")
+      .attr("stroke-width", 2);
+
+    node.append("circle")
+      .attr("r", 21)
+      .attr("fill", "rgba(255,255,255,0.58)");
+
+    node.append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "48")
+      .attr("font-size", 12)
+      .attr("font-weight", 800)
+      .attr("paint-order", "stroke")
+      .attr("stroke", labelHalo)
+      .attr("stroke-width", 4)
+      .attr("fill", labelColor)
+      .text((d) => `${d.first_name} ${d.last_name || ""}`.trim().slice(0, 18));
+
+    const displayPoint = (d, time) => ({
+      x: d.x + Math.sin(time / 1400 + d.floatSeed) * 3,
+      y: d.levelY + Math.cos(time / 1700 + d.floatSeed) * 4,
+    });
+
+    function render(time) {
+      const spousePath = (d) => {
+        const sourceNode = typeof d.source === "object" ? d.source : idMap.get(d.source);
+        const targetNode = typeof d.target === "object" ? d.target : idMap.get(d.target);
+        if (!sourceNode || !targetNode) return "";
+        const source = displayPoint(sourceNode, time);
+        const target = displayPoint(targetNode, time);
+        const mid = (source.x + target.x) / 2;
+        const lift = Math.min(22, Math.max(10, Math.abs(target.x - source.x) * 0.12));
+        return `M${source.x},${source.y} C${mid},${source.y - lift} ${mid},${target.y - lift} ${target.x},${target.y}`;
+      };
+
+      parentLink
+        .attr("x1", (d) => displayPoint(d.source, time).x).attr("y1", (d) => displayPoint(d.source, time).y)
+        .attr("x2", (d) => displayPoint(d.target, time).x).attr("y2", (d) => displayPoint(d.target, time).y);
+      parentLinkHalo
+        .attr("x1", (d) => displayPoint(d.source, time).x).attr("y1", (d) => displayPoint(d.source, time).y)
+        .attr("x2", (d) => displayPoint(d.target, time).x).attr("y2", (d) => displayPoint(d.target, time).y);
+      spouseLinkHalo.attr("d", spousePath);
+      spouseLink.attr("d", spousePath);
+      node.attr("transform", (d) => {
+        const point = displayPoint(d, time);
+        return `translate(${point.x},${point.y})`;
+      });
+    }
+
+    function animate(time) {
+      render(time);
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        requestAnimationFrame(animate);
+      }
+    }
+    svg.on("click", (event) => {
+      if (event.defaultPrevented) return;
+      clearFocus();
+    });
+    focusReset?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      clearFocus();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") clearFocus();
+    });
+    animate(performance.now());
+  })();
+</script>
+{% endif %}
+{% endblock %}

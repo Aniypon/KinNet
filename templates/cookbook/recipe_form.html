@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{% if recipe %}Изменить рецепт{% else %}Новый рецепт{% endif %}{% endblock %}
+{% block content %}
+{% include "partials/section_header.html" with title=page_title %}
+<section class="card">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="family" value="{{ family.id }}">
+    <label>Название</label><input name="title" value="{{ recipe.title|default:'' }}" required>
+    <label>Описание</label><textarea name="description" rows="3">{{ recipe.description|default:'' }}</textarea>
+    <label>Инструкция</label><textarea name="instructions" rows="6">{{ recipe.instructions|default:'' }}</textarea>
+    <div class="split">
+      <div><label>Время (мин)</label><input name="cook_time_minutes" type="number" value="{{ recipe.cook_time_minutes|default:30 }}"></div>
+      <div>
+        <label>Сколько порций получится</label>
+        <input name="servings" type="number" min="1" value="{{ recipe.servings|default:2 }}">
+      </div>
+    </div>
+    <label>Метки (через запятую)</label><input name="tags" value="{{ recipe.tags|default:'' }}" placeholder="ужин, быстрое">
+    <label>Продукты</label>
+    <p class="form-hint">Добавляйте продукты отдельными строками: что нужно, сколько и в каких единицах.</p>
+    <div class="ingredient-builder" data-ingredient-builder>
+      <div class="ingredient-builder__head" aria-hidden="true">
+        <span>Продукт</span>
+        <span>Количество</span>
+        <span>Единица</span>
+        <span></span>
+      </div>
+      <div class="ingredient-builder__rows" data-ingredient-rows></div>
+      <button class="btn secondary small ingredient-builder__add" type="button" data-add-ingredient>
+        <i data-lucide="plus"></i>
+        Добавить продукт
+      </button>
+      <textarea name="ingredients" data-ingredient-source hidden>{{ ingredients_text|default:'' }}</textarea>
+    </div>
+    <div class="card-actions">
+      <button class="btn" type="submit">Сохранить</button>
+      <a class="btn secondary" href="{% url 'cookbook:recipe_list' %}?family={{ family.id }}">Отмена</a>
+      {% if recipe %}
+        <details class="danger-menu">
+          <summary class="btn secondary">Ещё</summary>
+          <button class="danger-link" type="submit" form="recipe-delete-form">Удалить рецепт</button>
+        </details>
+      {% endif %}
+    </div>
+  </form>
+  {% if recipe %}
+    <form id="recipe-delete-form" method="post" action="{% url 'cookbook:recipe_delete' recipe.id %}">
+      {% csrf_token %}
+    </form>
+  {% endif %}
+</section>
+{% endblock %}
