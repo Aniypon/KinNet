@@ -51,14 +51,17 @@ def notify_many(users: Iterable, *, title: str, body: str = "", url: str = "", k
     if not users: return 0
     user_ids = [u.id for u in users]
     with transaction.atomic():
-        Notification.objects.bulk_create([
+        # bulk_create возвращает объекты с установленными PK (Django 3.1+, PostgreSQL/SQLite)
+        notes = Notification.objects.bulk_create([
             Notification(user=u, kind=kind, title=title, body=body, url=url)
             for u in users
         ])
-    notes = list(
-        Notification.objects.filter(user_id__in=user_ids, kind=kind, title=title)
-        .order_by("-id")[: len(users)]
-    )
+    # Если PK не были установлены (редкие бэкенды), откатываемся к запросу
+    if notes and notes[0].pk is None:
+        notes = list(
+            Notification.objects.filter(user_id__in=user_ids, kind=kind, title=title)
+            .order_by("-id")[: len(users)]
+        )
     subs_by_user: dict[int, list] = {}
     for sub in PushSubscription.objects.filter(user_id__in=user_ids):
         subs_by_user.setdefault(sub.user_id, []).append(sub)

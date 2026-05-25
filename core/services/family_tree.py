@@ -48,20 +48,24 @@ def _member(family, member_id, field_name="member"):
     except (FamilyMember.DoesNotExist, TypeError, ValueError):
         raise FamilyTreeValidationError("Участник не найден.", code=f"{field_name}_not_found")
 
-def _ancestor_ids(member, *, overrides=None, seen=None):
+def _ancestor_ids(member, *, overrides=None, seen=None, all_members=None):
     overrides = overrides or {}
     seen = seen or set()
     if member.id in seen:
         return seen
     seen.add(member.id)
     for parent_id in [pid for pid in overrides.get(member.id, (member.parent1_id, member.parent2_id)) if pid]:
-        parent = FamilyMember.objects.filter(id=parent_id, family=member.family).first()
+        # Используем кэш all_members если передан, иначе идём в БД
+        if all_members is not None:
+            parent = all_members.get(parent_id)
+        else:
+            parent = FamilyMember.objects.filter(id=parent_id, family=member.family).first()
         if parent:
-            _ancestor_ids(parent, overrides=overrides, seen=seen)
+            _ancestor_ids(parent, overrides=overrides, seen=seen, all_members=all_members)
     return seen
 
-def _would_create_parent_cycle(child, parent, *, overrides=None):
-    return child.id in _ancestor_ids(parent, overrides=overrides, seen=set())
+def _would_create_parent_cycle(child, parent, *, overrides=None, all_members=None):
+    return child.id in _ancestor_ids(parent, overrides=overrides, seen=set(), all_members=all_members)
 
 def validate_parent_assignment(child, parent, *, second_parent=None):
     if child.family_id != parent.family_id:
@@ -281,6 +285,6 @@ def validate_family_tree(family):
             issues.append(TreeIssue("self_parent", f"{member} указан своим родителем.", member.id))
         for parent_id in parent_ids:
             parent = all_members.get(parent_id)
-            if parent and _would_create_parent_cycle(member, parent):
+            if parent and _would_create_parent_cycle(member, parent, all_members=all_members):
                 issues.append(TreeIssue("parent_cycle", f"В ветке {member} найден цикл родителей.", member.id))
     return issues

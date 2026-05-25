@@ -88,14 +88,17 @@ def family_photo_preview(request, photo_id):
     photo = get_family_photo_for_user(request.user, photo_id)
     if photo is None:
         return HttpResponse(status=404)
-    with photo.image.open("rb") as f:
-        with Image.open(f) as source:
-            image = ImageOps.exif_transpose(source)
-            if image.mode not in ("RGB", "L"):
-                image = image.convert("RGB")
-            image.thumbnail((560, 560), Image.Resampling.LANCZOS)
-            buffer = BytesIO()
-            image.save(buffer, format="JPEG", quality=68, optimize=True)
+    try:
+        with photo.image.open("rb") as f:
+            with Image.open(f) as source:
+                image = ImageOps.exif_transpose(source)
+                if image.mode not in ("RGB", "L"):
+                    image = image.convert("RGB")
+                image.thumbnail((560, 560), Image.Resampling.LANCZOS)
+                buffer = BytesIO()
+                image.save(buffer, format="JPEG", quality=68, optimize=True)
+    except (OSError, Exception):
+        return HttpResponse(status=404)
     response = HttpResponse(buffer.getvalue(), content_type="image/jpeg")
     response["Cache-Control"] = "private, max-age=3600"
     return response

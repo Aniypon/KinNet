@@ -52,13 +52,21 @@ def recipe_create(request):
     if not has_role(request.user, family, ("owner", "admin")):
         raise PermissionDenied
     if request.method == "POST":
+        try:
+            cook_time = int(request.POST.get("cook_time_minutes") or 0)
+        except (ValueError, TypeError):
+            cook_time = 0
+        try:
+            servings = int(request.POST.get("servings") or 2)
+        except (ValueError, TypeError):
+            servings = 2
         recipe = Recipe.objects.create(
             family=family, author=request.user,
             title=request.POST.get("title", "").strip() or "Новый рецепт",
             description=request.POST.get("description", "").strip(),
             instructions=request.POST.get("instructions", "").strip(),
-            cook_time_minutes=int(request.POST.get("cook_time_minutes") or 0),
-            servings=int(request.POST.get("servings") or 2),
+            cook_time_minutes=max(0, cook_time),
+            servings=max(1, servings),
             tags=request.POST.get("tags", "").strip(),
         )
         _save_ingredients(recipe, request.POST.get("ingredients", ""))
@@ -83,8 +91,14 @@ def recipe_update(request, recipe_id: int):
         recipe.title = request.POST.get("title", "").strip() or "Новый рецепт"
         recipe.description = request.POST.get("description", "").strip()
         recipe.instructions = request.POST.get("instructions", "").strip()
-        recipe.cook_time_minutes = int(request.POST.get("cook_time_minutes") or 0)
-        recipe.servings = int(request.POST.get("servings") or 2)
+        try:
+            recipe.cook_time_minutes = max(0, int(request.POST.get("cook_time_minutes") or 0))
+        except (ValueError, TypeError):
+            recipe.cook_time_minutes = 0
+        try:
+            recipe.servings = max(1, int(request.POST.get("servings") or 2))
+        except (ValueError, TypeError):
+            recipe.servings = 2
         recipe.tags = request.POST.get("tags", "").strip()
         recipe.save(update_fields=["family", "title", "description", "instructions", "cook_time_minutes", "servings", "tags"])
         _save_ingredients(recipe, request.POST.get("ingredients", ""))
