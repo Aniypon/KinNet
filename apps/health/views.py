@@ -57,12 +57,16 @@ def medication_create(request, member_id: int):
     )
     if not has_role(request.user, member.family, ("owner", "admin")) and member.user_id != request.user.id:
         raise PermissionDenied
+    _valid_frequencies = {f for f, _ in Medication.FREQUENCY_CHOICES}
     if request.method == "POST":
+        frequency = request.POST.get("frequency", "daily")
+        if frequency not in _valid_frequencies:
+            frequency = "daily"
         Medication.objects.create(
             member=member,
             name=request.POST.get("name", "").strip() or "Препарат",
             dosage=request.POST.get("dosage", "").strip(),
-            frequency=request.POST.get("frequency", "daily"),
+            frequency=frequency,
             times=request.POST.get("times", ""),
             notes=request.POST.get("notes", ""),
         )

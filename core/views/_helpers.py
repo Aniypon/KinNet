@@ -11,7 +11,6 @@ from django.utils import timezone
 
 from ..family_context import get_user_families
 from ..models import AuditLog, Event, FamilyMember, FamilyPhoto
-from ..services.family_tree import validate_family_tree  # noqa: F401
 
 def has_family_access(user, family):
     return get_user_families(user).filter(id=family.id).exists()

@@ -44,7 +44,8 @@ def create_member(family, *, first_name, last_name="", middle_name="", relation=
 
 def _member(family, member_id, field_name="member"):
     try:
-        return family.family_members.get(id=member_id)
+        # SELECT FOR UPDATE: сериализуем конкурентные изменения дерева внутри atomic-транзакции
+        return family.family_members.select_for_update().get(id=member_id)
     except (FamilyMember.DoesNotExist, TypeError, ValueError):
         raise FamilyTreeValidationError("Участник не найден.", code=f"{field_name}_not_found")
 
@@ -101,7 +102,7 @@ def validate_pair(member_a, member_b):
 def restore_tree_snapshot(family, snapshot):
     if not isinstance(snapshot, list):
         raise FamilyTreeValidationError("Некорректный снимок древа.", code="bad_snapshot")
-    members = {m.id: m for m in family.family_members.all()}
+    members = {m.id: m for m in family.family_members.select_for_update().all()}
     allowed_ids = set(members)
 
     def clean_id(value):

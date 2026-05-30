@@ -43,9 +43,9 @@ def poll_create(request):
             allow_multiple=bool(request.POST.get("allow_multiple")),
             closes_at=closes_at,
         )
-        for raw in request.POST.get("choices", "").splitlines():
-            if text := raw.strip():
-                PollChoice.objects.create(poll=poll, text=text)
+        choice_texts = [raw.strip() for raw in request.POST.get("choices", "").splitlines() if raw.strip()]
+        if choice_texts:
+            PollChoice.objects.bulk_create([PollChoice(poll=poll, text=t) for t in choice_texts])
         return redirect("polls:poll_detail", poll_id=poll.id)
     return render(request, "polls/poll_form.html", {"families": families, "family": family, "page_title": "Новый опрос"})
 

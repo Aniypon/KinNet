@@ -26,9 +26,10 @@ def home(request):
     if request.user.is_authenticated:
         family, families = current_family(request)
         from apps.notifications.models import Notification
-        notif_qs = Notification.objects.filter(user=request.user)
-        unread_notifications = list(notif_qs.filter(is_read=False)[:5])
-        unread_notifications_count = notif_qs.filter(is_read=False).count()
+        # Один запрос для списка и счётчика: грузим до 100 непрочитанных, срезаем для отображения
+        _all_unread = list(Notification.objects.filter(user=request.user, is_read=False)[:100])
+        unread_notifications = _all_unread[:5]
+        unread_notifications_count = len(_all_unread)
         pending_invitations = FamilyInvitation.objects.filter(status="pending", username=request.user.username)
         if family:
             today = timezone.localdate()
