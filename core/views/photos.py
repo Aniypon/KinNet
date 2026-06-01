@@ -14,7 +14,7 @@ from PIL import Image, ImageOps
 from ..family_context import current_family
 from ..forms import FamilyPhotoForm
 from ..models import FamilyPhoto
-from ._helpers import album_archive_path, get_family_photo_for_user, has_family_access  # noqa: F401
+from ._helpers import album_archive_path, get_family_photo_for_user
 
 def _purge_expired(family):
     for p in family.photos.filter(created_at__lte=timezone.now() - timedelta(days=7)):

@@ -14,12 +14,19 @@ DEFAULT_BADGES: tuple[tuple[str, str, str, str], ...] = (
 
 _DEFAULTS_BY_CODE = {code: (title, desc, emoji) for code, title, desc, emoji in DEFAULT_BADGES}
 
+# Флаг: сеяние выполняется единожды за жизнь процесса, не при каждом запросе.
+_badges_seeded = False
+
 def ensure_default_badges() -> Iterable[Badge]:
-    for code, title, description, emoji in DEFAULT_BADGES:
-        Badge.objects.update_or_create(
-            code=code,
-            defaults={"title": title, "description": description, "emoji": emoji},
-        )
+    global _badges_seeded
+    if not _badges_seeded:
+        for code, title, description, emoji in DEFAULT_BADGES:
+            # get_or_create, а не update_or_create — не перетираем правки администратора
+            Badge.objects.get_or_create(
+                code=code,
+                defaults={"title": title, "description": description, "emoji": emoji},
+            )
+        _badges_seeded = True
     return Badge.objects.all()
 
 def _get_or_create_badge(code):

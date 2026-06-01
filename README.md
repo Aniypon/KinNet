@@ -1,6 +1,23 @@
 # KinNet
 
+[![CI](https://github.com/Aniypon/KinNet/actions/workflows/ci.yml/badge.svg)](https://github.com/Aniypon/KinNet/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/django-5.x-green)](https://www.djangoproject.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 KinNet — семейная социальная сеть и органайзер на Django. Объединяет в одном пространстве: семейное древо (D3.js), общий календарь и события, задачи и цели, кулинарную книгу со списком покупок, дашборд здоровья, капсулы времени, бюджет и список желаний, опросы, систему достижений и PWA-фронтенд (Vite + HTMX + Alpine.js).
+
+---
+
+## Скриншоты
+
+| Главная | Семейное древо | Кулинарная книга |
+|---|---|---|
+| ![Главная](screenshots/03_dashboard.png) | ![Дерево](screenshots/10_family_tree.png) | ![Рецепты](screenshots/11_cookbook.png) |
+
+| Задачи | Бюджет | Достижения |
+|---|---|---|
+| ![Задачи](screenshots/26_tasks.png) | ![Бюджет](screenshots/18_budget.png) | ![Достижения](screenshots/31_badges.png) |
 
 ---
 
