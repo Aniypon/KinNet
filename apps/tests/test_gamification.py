@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from apps.gamification.models import Badge, UserBadge
-from apps.gamification.services import _badges_seeded, award, ensure_default_badges
+from apps.gamification.services import award, ensure_default_badges
 
 User = get_user_model()
 

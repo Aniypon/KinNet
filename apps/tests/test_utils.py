@@ -1,6 +1,5 @@
 """Tests for core/utils.py — date utilities used across the project."""
 from datetime import date, datetime
-from unittest.mock import patch
 
 from django.test import TestCase
 
