@@ -31,6 +31,9 @@
       {% else %}
         <p class="meta">Пока нет семей. Создайте первую.</p>
       {% endif %}
+      <div class="meta" style="margin-top: 12px;">
+        <a href="{% url 'password_requests' %}">Заявки на сброс пароля</a>
+      </div>
     </section>
 
     <section class="card">

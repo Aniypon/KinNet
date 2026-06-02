@@ -6,3 +6,4 @@ from .tasks import tasks as tasks, task_detail as task_detail, task_edit as task
 from .goals import goals as goals, goal_detail as goal_detail
 from .photos import family_album as family_album, family_album_download as family_album_download, family_photo_download as family_photo_download, family_photo_preview as family_photo_preview
 from .messages import messages as messages, messages_api as messages_api, message_send_api as message_send_api, message_pin_api as message_pin_api, message_reaction_api as message_reaction_api, message_typing_api as message_typing_api, message_delete as message_delete
+from .auth_reset import password_help as password_help, password_requests as password_requests, password_request_approve as password_request_approve, password_request_reject as password_request_reject

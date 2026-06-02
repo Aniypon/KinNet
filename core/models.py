@@ -299,3 +299,32 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user} profile"
+
+class PasswordResetRequest(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Ожидает"),
+        ("approved", "Одобрена"),
+        ("rejected", "Отклонена"),
+    ]
+    user = models.ForeignKey(AUTH, on_delete=models.CASCADE, related_name="password_requests")
+    note = models.TextField(blank=True, help_text="Что случилось / как подтвердить личность")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_by = models.ForeignKey(
+        AUTH, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="password_requests_resolved",
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(status="pending"),
+                name="uniq_pending_password_request_per_user",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} → {self.status}"

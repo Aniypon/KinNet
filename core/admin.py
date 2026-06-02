@@ -10,10 +10,17 @@ from .models import (
 	Message,
 	MessageReaction,
 	MessageReadState,
+	PasswordResetRequest,
 	Task,
 	TaskChecklistItem,
 	TaskContribution,
 )
+
+@admin.register(PasswordResetRequest)
+class PasswordResetRequestAdmin(admin.ModelAdmin):
+	list_display = ("user", "status", "created_at", "resolved_by", "resolved_at")
+	list_filter = ("status",)
+	search_fields = ("user__username", "user__email")
 
 @admin.register(Family)
 class FamilyAdmin(admin.ModelAdmin):

@@ -53,6 +53,14 @@ class FamilyInvitationForm(forms.ModelForm):
             raise forms.ValidationError("Укажите никнейм.")
         return cleaned
 
+class PasswordHelpForm(forms.Form):
+    username = forms.CharField(label="Имя пользователя", max_length=150)
+    note = forms.CharField(
+        label="Что случилось (необязательно)",
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Например: забыл пароль, новый телефон"}),
+    )
+
 class SignupForm(UserCreationForm):
     full_name = forms.CharField(label="ФИО", max_length=150)
     birth_date = forms.DateField(label="Дата рождения", input_formats=DATE_INPUT_FORMATS, widget=local_date_input())

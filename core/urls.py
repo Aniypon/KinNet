@@ -4,6 +4,10 @@ from . import views as v
 urlpatterns = [
     path("", v.home, name="home"),
     path("signup/", v.signup, name="signup"),
+    path("accounts/password-help/", v.password_help, name="password_help"),
+    path("requests/passwords/", v.password_requests, name="password_requests"),
+    path("requests/passwords/<int:pk>/approve/", v.password_request_approve, name="password_request_approve"),
+    path("requests/passwords/<int:pk>/reject/", v.password_request_reject, name="password_request_reject"),
     path("profile/", v.profile_edit, name="profile_edit"),
     path("profile/ui/", v.ui_set_pref, name="ui_set_pref"),
     path("family/set/", v.set_active_family, name="set_active_family"),
