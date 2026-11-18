@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
 from django.middleware.csrf import get_token
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -11,7 +10,6 @@ from django.views.decorators.http import require_POST
 
 from core.family_context import current_family as _current_family, get_user_families as _user_families
 from core.models import Task
-from core.permissions import has_role
 
 from .models import Ingredient, Recipe, ShoppingItem, ShoppingList
 
@@ -49,8 +47,6 @@ def recipe_list(request):
 def recipe_create(request):
     family, families = _current_family(request)
     if not family: return redirect("families")
-    if not has_role(request.user, family, ("owner", "admin")):
-        raise PermissionDenied
     if request.method == "POST":
         try:
             cook_time = int(request.POST.get("cook_time_minutes") or 0)
@@ -84,8 +80,6 @@ def recipe_detail(request, recipe_id: int):
 def recipe_update(request, recipe_id: int):
     recipe = get_object_or_404(Recipe.objects.filter(family__in=_user_families(request.user)), pk=recipe_id)
     family, families = _current_family(request)
-    if not has_role(request.user, recipe.family, ("owner", "admin")):
-        raise PermissionDenied
     if request.method == "POST":
         recipe.family = family or recipe.family
         recipe.title = request.POST.get("title", "").strip() or "Новый рецепт"
@@ -112,8 +106,6 @@ def recipe_update(request, recipe_id: int):
 @require_POST
 def recipe_delete(request, recipe_id: int):
     recipe = get_object_or_404(Recipe.objects.filter(family__in=_user_families(request.user)), pk=recipe_id)
-    if not has_role(request.user, recipe.family, ("owner", "admin")):
-        raise PermissionDenied
     recipe.delete()
     if request.headers.get("HX-Request"):
         return HttpResponse("")

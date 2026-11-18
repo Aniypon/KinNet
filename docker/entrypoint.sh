@@ -31,7 +31,9 @@ case "$cmd" in
     python manage.py collectstatic --noinput
     exec gunicorn family_circle.wsgi:application \
         --bind 0.0.0.0:8000 \
-        --workers "${GUNICORN_WORKERS:-3}" \
+        --worker-class "${GUNICORN_WORKER_CLASS:-gthread}" \
+        --workers "${GUNICORN_WORKERS:-2}" \
+        --threads "${GUNICORN_THREADS:-25}" \
         --timeout "${GUNICORN_TIMEOUT:-60}"
     ;;
   worker)

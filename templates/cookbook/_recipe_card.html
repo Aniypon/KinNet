@@ -7,9 +7,7 @@
     <p class="meta">{{ recipe.family.name }} · {{ recipe.cook_time_minutes }} мин · {{ recipe.servings }} порц.</p>
     {% if recipe.tags %}<p class="meta">{{ recipe.tags }}</p>{% endif %}
   </a>
-  {% role_gate "owner,admin" %}
   <div class="card-actions" style="margin-top:0.25rem;">
     <a class="btn small secondary" href="{% url 'cookbook:recipe_update' recipe.id %}">Изменить</a>
   </div>
-  {% endrole_gate %}
 </div>

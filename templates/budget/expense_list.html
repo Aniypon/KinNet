@@ -65,7 +65,6 @@
 
 <section class="split" style="margin-top:1rem;">
   <div class="stack-list">
-    {% role_gate "owner,admin" %}
     <section class="card" id="new-expense" data-reveal x-data="{ open: false }">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
         <h3 style="margin:0;">Добавить расход</h3>
@@ -92,7 +91,6 @@
         </datalist>
       </form>
     </section>
-    {% endrole_gate %}
 
     <h3 style="margin:0.5rem 0 0;">Операции</h3>
     <div id="expense-list" class="stack-list">

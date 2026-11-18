@@ -41,6 +41,8 @@ services:
   web:
     build: .
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       <<: *app-env
     depends_on:
@@ -58,6 +60,8 @@ services:
     build: .
     restart: unless-stopped
     command: ["worker"]
+    env_file:
+      - .env
     environment:
       <<: *app-env
     depends_on:
@@ -72,6 +76,8 @@ services:
     build: .
     restart: unless-stopped
     command: ["beat"]
+    env_file:
+      - .env
     environment:
       <<: *app-env
     depends_on:
